@@ -1,0 +1,99 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { decodePaymentRequiredHeader, encodePaymentSignatureHeader } from "@x402/core/http";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { app, assertAllowlistedFacilitatorRequest } from "../src/worker.js";
+import { buildPaymentRequired, makeBuyerClient } from "../src/protocol.js";
+import { EvidenceStore } from "../src/evidence-store.js";
+import { createDatabase } from "./support/sqlite-d1.js";
+
+const TOKEN = "0xE0BE08c77f415F577A1B3A9aD7a1Df1479564ec8";
+const MERCHANT = "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7";
+
+function fixture() {
+  const db = createDatabase();
+  const key = generatePrivateKey();
+  const buyer = privateKeyToAccount(key).address;
+  const chain = { getChainId: async () => 688689, getBlockNumber: async () => 12345n };
+  const env = {
+    DB: db,
+    PUBLIC_ORIGIN: "https://paywall.test",
+    PAYMENT_TOKEN: TOKEN,
+    BUYER_ADDRESS: buyer,
+    BUYER_PRIVATE_KEY: key,
+    MERCHANT_ADDRESS: MERCHANT,
+    FACILITATOR_ADDRESS: privateKeyToAccount(generatePrivateKey()).address,
+    OWNER_TOKEN: "owner-test-token",
+    PAYMENT_OPERATIONAL: "false",
+    __TEST_DEPENDENCIES: { publicClient: () => chain, seller: { publicClient: () => chain } },
+    SELLER: { idFromName: () => "seller", get: () => ({ fetch: async () => { throw new Error("seller must not be reached for rejected input"); } }) },
+  };
+  return { db, env };
+}
+
+test("free route bypasses payment and returns HTTP 200", async (t) => {
+  const { db, env } = fixture(); t.after(() => db.close());
+  const response = await app.request("https://paywall.test/health", {}, env);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("PAYMENT-REQUIRED"), null);
+  assert.deepEqual({ ...(await response.json()), timestamp: undefined }, { ok: true, free: true, paymentRequired: false, chainId: 688689, network: "eip155:688689", worker: "pharos-x402-paywalled-api", timestamp: undefined });
+});
+
+test("both paid routes return distinct exact unpaid HTTP 402 challenges", async (t) => {
+  const { db, env } = fixture(); t.after(() => db.close());
+  for (const [path, amount] of [["/paid/network-snapshot", "1000"], ["/paid/activity-summary", "2000"]]) {
+    const response = await app.request(`https://paywall.test${path}?block=12345`, {}, env);
+    assert.equal(response.status, 402);
+    const required = decodePaymentRequiredHeader(response.headers.get("PAYMENT-REQUIRED"));
+    assert.equal(required.accepts[0].network, "eip155:688689");
+    assert.equal(required.accepts[0].asset, TOKEN);
+    assert.equal(required.accepts[0].payTo, MERCHANT);
+    assert.equal(required.accepts[0].amount, amount);
+    assert.equal(required.resource.url, `https://paywall.test${path}?block=12345`);
+  }
+});
+
+test("malformed and correctly signed underpayment return 402 before seller or paid data", async (t) => {
+  const { db, env } = fixture(); t.after(() => db.close());
+  const url = "https://paywall.test/paid/network-snapshot?block=12345";
+  const malformed = await app.request(url, { headers: { "PAYMENT-SIGNATURE": "invalid" } }, env);
+  assert.equal(malformed.status, 402);
+  assert.equal((await malformed.json()).endpoint, undefined);
+
+  const lower = buildPaymentRequired({ origin: "https://paywall.test", path: "/paid/network-snapshot", snapshotBlock: "12345", env });
+  lower.accepts[0].amount = "999";
+  const signedLower = await makeBuyerClient(env).createPaymentPayload(lower);
+  assert.equal(signedLower.payload.authorization.value, "999");
+  const underpaid = await app.request(url, { headers: { "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(signedLower) } }, env);
+  assert.equal(underpaid.status, 402);
+  assert.match((await underpaid.json()).error, /does not satisfy/);
+});
+
+test("facilitator allowlist rejects wrong chain, token, recipient, amount and settlement stays disabled", async (t) => {
+  const { db, env } = fixture(); t.after(() => db.close());
+  const required = buildPaymentRequired({ origin: env.PUBLIC_ORIGIN, path: "/paid/network-snapshot", snapshotBlock: "12345", env });
+  const payload = await makeBuyerClient(env).createPaymentPayload(required);
+  assert.doesNotThrow(() => assertAllowlistedFacilitatorRequest(payload, required.accepts[0], env));
+  for (const mutate of [
+    (copy) => { copy.network = "eip155:1672"; },
+    (copy) => { copy.asset = "0x1111111111111111111111111111111111111111"; },
+    (copy) => { copy.payTo = "0x2222222222222222222222222222222222222222"; },
+    (copy) => { copy.amount = "999"; },
+  ]) {
+    const copy = structuredClone(required.accepts[0]); mutate(copy);
+    assert.throws(() => assertAllowlistedFacilitatorRequest(payload, copy, env));
+  }
+  const settlement = await app.request("https://paywall.test/settle", { method: "POST", headers: { authorization: `Bearer ${env.OWNER_TOKEN}`, "content-type": "application/json" }, body: JSON.stringify({ paymentPayload: payload, paymentRequirements: required.accepts[0] }) }, env);
+  assert.equal(settlement.status, 503);
+  assert.match((await settlement.json()).errorReason, /does not expose EIP-3009/);
+});
+
+test("safe HTTP evidence persists exact status and zero debit", async (t) => {
+  const { db } = fixture(); t.after(() => db.close());
+  const store = new EvidenceStore(db);
+  await store.save({ id: "missing-test", kind: "MISSING_PAYMENT", label: "test", route: "/paid/network-snapshot", request: { paymentSignaturePresent: false }, responseStatus: 402, responseHeaders: { paymentRequired: "safe-header" }, responseBody: { error: "Payment required" }, decodedRequirements: { network: "eip155:688689" }, settlementHash: null, debitAtomic: "0", createdAt: "2026-10-17T00:00:00.000Z" });
+  const [record] = await store.list();
+  assert.equal(record.responseStatus, 402);
+  assert.equal(record.debitAtomic, "0");
+  assert.equal(record.settlementHash, null);
+});

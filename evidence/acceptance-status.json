@@ -1,0 +1,10 @@
+{
+  "recordedAt": "2026-10-17T16:00:04.871Z",
+  "status": "BLOCKED_FOUNDATION",
+  "realPaymentsBroadcast": 0,
+  "testUsdcSpentAtomic": "0",
+  "phrsGasSpentWei": "0",
+  "passingDeterministicTests": 27,
+  "blocker": "The Pharos-documented Atlantic test-USDC lacks EIP-3009 transferWithAuthorization, authorizationState, and DOMAIN_SEPARATOR required by @x402/evm 2.28.0 exact settlement.",
+  "minimumExternalAction": "Pharos must identify or deploy a documented Atlantic test-USDC contract compatible with EIP-3009, document its EIP-712 name/version, and make test tokens available. Only then should PAYMENT_OPERATIONAL be explicitly enabled and the two minimum real payments recorded."
+}

@@ -1,0 +1,27 @@
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+
+const root = path.resolve(import.meta.dirname, "..");
+const secretPath = path.resolve(root, "..", "local-secrets", "pharos-x402-paywalled-api.secrets.json");
+const publicPath = path.join(root, "evidence", "identities.json");
+if (fs.existsSync(secretPath)) throw new Error(`Secret bundle already exists: ${secretPath}`);
+const facilitatorKey = generatePrivateKey();
+const buyerKey = generatePrivateKey();
+const merchantKey = generatePrivateKey();
+const ownerToken = randomBytes(32).toString("base64url");
+const facilitator = privateKeyToAccount(facilitatorKey).address;
+const buyer = privateKeyToAccount(buyerKey).address;
+const merchant = privateKeyToAccount(merchantKey).address;
+const secrets = { FACILITATOR_PRIVATE_KEY: facilitatorKey, BUYER_PRIVATE_KEY: buyerKey, MERCHANT_PRIVATE_KEY: merchantKey, OWNER_TOKEN: ownerToken };
+fs.mkdirSync(path.dirname(secretPath), { recursive: true });
+fs.writeFileSync(secretPath, JSON.stringify(secrets), { mode: 0o600, flag: "wx" });
+const identity = spawnSync("whoami.exe", [], { encoding: "utf8" }).stdout.trim();
+const grants = [`${process.env.USERDOMAIN}\\${process.env.USERNAME}:(R,W)`, `${identity}:(R,W)`];
+const acl = spawnSync("icacls.exe", [secretPath, "/inheritance:r", "/grant:r", ...grants], { encoding: "utf8" });
+if (acl.status !== 0) throw new Error("Secret file was created but NTFS ACL hardening failed; do not fund the address");
+fs.mkdirSync(path.dirname(publicPath), { recursive: true });
+fs.writeFileSync(publicPath, `${JSON.stringify({ createdAt: new Date().toISOString(), network: "eip155:688689", facilitator, buyer, merchant, ownerTokenSha256: createHash("sha256").update(ownerToken).digest("hex"), secretStorage: "outside repository; NTFS ACL restricted to current Windows user; mirrored to Cloudflare encrypted secrets before any funding", secretsPrinted: false }, null, 2)}\n`);
+console.log(JSON.stringify({ facilitator, buyer, merchant, localSecretLocation: secretPath, aclRestrictedToCurrentUser: true, secretsPrinted: false }, null, 2));

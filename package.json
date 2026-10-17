@@ -1,0 +1,37 @@
+{
+  "name": "pharos-x402-paywalled-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "bin": { "pharos-paywall": "src/cli.js" },
+  "scripts": {
+    "test": "node --test",
+    "build": "rollup --config rollup.config.mjs",
+    "dev": "npm run build && wrangler dev dist/worker.js --no-bundle",
+    "deploy": "npm run build && wrangler deploy dist/worker.js --no-bundle",
+    "db:migrate:local": "wrangler d1 migrations apply pharos-x402-paywalled-api --local",
+    "db:migrate:remote": "wrangler d1 migrations apply pharos-x402-paywalled-api --remote",
+    "probe:foundation": "node scripts/probe-foundation.mjs",
+    "cli": "node src/cli.js",
+    "skill": "node scripts/invoke-skill.mjs"
+  },
+  "dependencies": {
+    "@x402/core": "2.28.0",
+    "@x402/evm": "2.28.0",
+    "@x402/fetch": "2.28.0",
+    "@x402/hono": "2.28.0",
+    "hono": "4.13.13",
+    "viem": "2.55.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "29.0.3",
+    "@rollup/plugin-json": "6.1.0",
+    "@rollup/plugin-node-resolve": "16.0.3",
+    "rollup": "4.64.7",
+    "solc": "0.8.37",
+    "wrangler": "4.151.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-10-17T16:00:04.871Z",
+  "chainId": 688689,
+  "network": "eip155:688689",
+  "blockNumber": "31541369",
+  "documentedToken": "0xE0BE08c77f415F577A1B3A9aD7a1Df1479564ec8",
+  "tokenCodeBytes": 6005,
+  "token": {
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "decimals": 6,
+    "totalSupplyAtomic": "1000000000000000000000000000",
+    "totalSupply": "1000000000000000000000",
+    "buyer": "0x29946933492Ca11744941Bc12630852498dAd8D7",
+    "buyerBalanceAtomic": "0",
+    "buyerBalance": "0"
+  },
+  "facilitator": {
+    "address": "0x87D11811655926EC18C49b936D52B80c64c68dE1",
+    "nativeBalanceWei": "0",
+    "nativeBalancePHRS": "0"
+  },
+  "selectors": {
+    "transferWithAuthorization(address,address,uint256,uint256,uint256,bytes32,uint8,bytes32,bytes32)": false,
+    "authorizationState(address,bytes32)": false,
+    "DOMAIN_SEPARATOR()": false
+  },
+  "requiredByInstalledSdk": "@x402/evm 2.28.0 exact EVM uses EIP-3009 transferWithAuthorization",
+  "compatibleWithInstalledExactScheme": false,
+  "conclusion": "BLOCKED: the Pharos-documented Atlantic test-USDC is deployed and readable but lacks the EIP-3009 entry points and EIP-712 domain required by the installed official x402 exact EVM scheme. No substitute token is used."
+}
