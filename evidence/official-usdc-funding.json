@@ -1,0 +1,38 @@
+{
+  "verifiedAt": "2026-10-17T18:02:00.000Z",
+  "network": "Pharos Atlantic Testnet",
+  "chainId": 688689,
+  "transactionHash": "0x5de280fb94401bee7086f24eaac4f2a3c95fc35367ee506cfd183e9cd3f6b65d",
+  "receiptStatus": "success",
+  "blockNumber": "31545051",
+  "token": {
+    "address": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+    "proxyImplementation": "0x02c3fe2d1700814ec27da9e447f7957329c96126",
+    "name": "USDC",
+    "symbol": "USDC",
+    "decimals": 6,
+    "version": "2",
+    "domainSeparator": "0x29a275a05374772bbc16618b5855b2e9317f36399c0d925e4deea5646c572afd",
+    "eip3009": {
+      "transferWithAuthorization": true,
+      "authorizationState": true,
+      "transferWithAuthorizationTypehash": true
+    }
+  },
+  "transfer": {
+    "from": "0x46D47FB19339745D106A07d9652b7636c3e02bB5",
+    "to": "0x29946933492Ca11744941Bc12630852498dAd8D7",
+    "amountAtomic": "1000000",
+    "amountUSDC": "1"
+  },
+  "buyerBalanceAtVerificationAtomic": "2000000",
+  "buyerBalanceAtVerificationUSDC": "2",
+  "balanceNote": "A separate earlier 1 USDC transfer to the buyer is also present, so the current balance is 2 USDC.",
+  "sources": {
+    "transaction": "https://atlantic.pharosscan.xyz/tx/0x5de280fb94401bee7086f24eaac4f2a3c95fc35367ee506cfd183e9cd3f6b65d",
+    "token": "https://atlantic.pharosscan.xyz/token/0xcfc8330f4bcab529c625d12781b1c19466a9fc8b",
+    "contract": "https://atlantic.pharosscan.xyz/address/0xcfc8330f4bcab529c625d12781b1c19466a9fc8b#code",
+    "registry": "https://docs.pharos.xyz/getting-started/token-registry"
+  },
+  "transactionsBroadcastByProject": 0
+}

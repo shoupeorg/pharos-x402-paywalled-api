@@ -6,6 +6,7 @@ import { authorizationId, makeBuyerClient, validatePaymentRequired } from "./pro
 import { budgetDecision } from "./money.js";
 import { BuyerStore } from "./store.js";
 import { handlePaidRequest } from "./seller.js";
+import { EvidenceStore } from "./evidence-store.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -134,6 +135,20 @@ export class BuyerEngine {
         const receipt = await this.dependencies.verifySettlementReceipt({ txHash: settlement.transaction, token: this.env.PAYMENT_TOKEN, payer: this.env.BUYER_ADDRESS, merchant: this.env.MERCHANT_ADDRESS, amountAtomic: endpoint.priceAtomic });
         await this.store.recordAttempt(runId, intentId, attempt, delayMs, data.payment?.recovered ? "RECOVERED_PAID_RESPONSE" : "SUCCESS");
         await this.store.settle({ taskId: runId, intentId, amountAtomic: endpoint.priceAtomic, settlementHash: settlement.transaction, receipt, response: data });
+        await new EvidenceStore(this.env.DB).save({
+          id: `paid:${intentId}`,
+          kind: endpoint.path === "/paid/network-snapshot" ? "PAID_ROUTE_A" : "PAID_ROUTE_B",
+          label: `${endpoint.label} — real EIP-3009 settlement`,
+          route: endpoint.path,
+          request: { method: "GET", transport: "WORKER_HTTP", paymentSignaturePresent: true, signaturePublished: false, runId },
+          responseStatus: 200,
+          responseHeaders: { paymentRequired: null, paymentResponse: "present (not published)" },
+          responseBody: data,
+          decodedRequirements: { scheme: "exact", network: NETWORK, asset: this.env.PAYMENT_TOKEN, payTo: this.env.MERCHANT_ADDRESS, amount: endpoint.priceAtomic },
+          settlementHash: settlement.transaction,
+          debitAtomic: endpoint.priceAtomic,
+          createdAt: new Date().toISOString(),
+        });
         return;
       } catch (error) {
         lastError = error;

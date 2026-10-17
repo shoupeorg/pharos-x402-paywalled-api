@@ -6,7 +6,8 @@ export const EXPLORER_URL = "https://atlantic.pharosscan.xyz";
 export const PROTOCOL_VERSION = 2;
 export const PAYMENT_SCHEME = "exact";
 export const TOKEN_DECIMALS = 6;
-export const TOKEN_NAME = "USD Coin";
+// This must match the deployed token's EIP-712 domain exactly.
+export const TOKEN_NAME = "USDC";
 export const TOKEN_SYMBOL = "USDC";
 export const ENDPOINTS = Object.freeze([
   { path: "/paid/network-snapshot", priceAtomic: "1000", label: "Paid Network Snapshot" },
@@ -15,3 +16,4 @@ export const ENDPOINTS = Object.freeze([
 export const RETRY_DELAYS_MS = Object.freeze([0, 250, 750]);
 export const MAX_GAS_PER_SETTLEMENT = 160000n;
 export const MAX_GAS_TOTAL = 2000000n;
+export const MAX_GAS_SPEND_WEI = 13900000000000000n;

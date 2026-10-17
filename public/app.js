@@ -4,8 +4,8 @@ let records = [];
 async function request(path, options = {}) { const response = await fetch(path, options); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`); return data; }
 function status(message, ok = true) { $("action-status").textContent = message; $("system-status").textContent = ok ? "SYSTEM READY" : "ACTION FAILED"; }
 function renderFoundation(config) {
-  $("foundation-state").textContent = config.paymentOperational ? "OPERATIONAL" : "BLOCKED — TOKEN COMPATIBILITY"; $("blocker").textContent = config.blocker; $("payment-status").textContent = config.paymentOperational ? "READY" : "BLOCKED";
-  const values = [["NETWORK", `${config.chain.name} / ${config.chain.network}`], ["DOCUMENTED TEST USDC", config.paymentAsset?.address], ["TOKEN", `${config.paymentAsset?.name} / ${config.paymentAsset?.symbol} / ${config.paymentAsset?.decimals} decimals`], ["BYTECODE", `${config.paymentAsset?.codeBytes} bytes`], ["EIP-3009", config.paymentAsset?.eip3009Compatible ? "SUPPORTED" : "NOT EXPOSED"], ["FREE ROUTE", "/health"], ["PAID A", "/paid/network-snapshot · 0.001 USDC"], ["PAID B", "/paid/activity-summary · 0.002 USDC"]];
+  $("foundation-state").textContent = config.paymentOperational ? "OPERATIONAL" : "READY — SETTLEMENT PAUSED"; $("blocker").textContent = config.blocker || "Official EIP-3009 settlement enabled."; $("payment-status").textContent = config.paymentOperational ? "READY" : "PAUSED";
+  const values = [["NETWORK", `${config.chain.name} / ${config.chain.network}`], ["OFFICIAL ATLANTIC TEST USDC", config.paymentAsset?.address], ["TOKEN", `${config.paymentAsset?.name} / ${config.paymentAsset?.symbol} / ${config.paymentAsset?.decimals} decimals`], ["BYTECODE", `${config.paymentAsset?.codeBytes} bytes`], ["EIP-3009", config.paymentAsset?.eip3009Compatible ? "SUPPORTED · DOMAIN v2" : "NOT VERIFIED"], ["FREE ROUTE", "/health"], ["PAID A", "/paid/network-snapshot · 0.001 USDC"], ["PAID B", "/paid/activity-summary · 0.002 USDC"]];
   $("foundation").innerHTML = values.map(([key, value]) => `<div class="source-card"><b>${esc(key)}</b><span>${esc(value)}</span></div>`).join("");
 }
 function renderRecord(item) {
@@ -35,7 +35,7 @@ async function runBrowserDemo(kind) {
   renderRecord(result); await refresh();
 }
 async function facilitator() { const result = await request("/supported"); $("supported").textContent = JSON.stringify(result, null, 2); status("FACILITATOR EVIDENCE LOADED"); }
-function paid(route) { const row = records.find((item) => item.kind === route); if (!row) throw new Error("No real paid evidence exists: official documented test USDC is incompatible with EIP-3009"); renderRecord(row); }
+function paid(route) { const row = records.find((item) => item.kind === route); if (!row) throw new Error("No real paid evidence has been recorded for this route yet."); renderRecord(row); }
 $("free-health").addEventListener("click", () => runBrowserDemo("FREE_HEALTH").catch((error) => status(error.message, false)));
 $("missing-payment").addEventListener("click", () => runBrowserDemo("MISSING_PAYMENT").catch((error) => status(error.message, false)));
 $("invalid-payment").addEventListener("click", () => runBrowserDemo("INVALID_PAYMENT").catch((error) => status(error.message, false)));
@@ -44,4 +44,4 @@ $("paid-a").addEventListener("click", () => { try { paid("PAID_ROUTE_A"); } catc
 $("paid-b").addEventListener("click", () => { try { paid("PAID_ROUTE_B"); } catch (error) { status(error.message, false); } });
 $("facilitator").addEventListener("click", () => facilitator().catch((error) => status(error.message, false)));
 $("refresh").addEventListener("click", () => refresh().catch((error) => status(error.message, false)));
-Promise.all([request("/api/config"), request("/api/http-evidence"), request("/supported")]).then(([config, history, supported]) => { renderFoundation(config); records = history.records; $("supported").textContent = JSON.stringify(supported, null, 2); $("settlements").textContent = String(records.filter((item) => item.settlementHash).length); if (records[0]) renderRecord(records[0]); $("connection").textContent = "CONNECTED"; status("READY — FOUNDATION LIMITATION DISCLOSED"); }).catch((error) => { $("connection").textContent = "ERROR"; status(error.message, false); });
+Promise.all([request("/api/config"), request("/api/http-evidence"), request("/supported")]).then(([config, history, supported]) => { renderFoundation(config); records = history.records; $("supported").textContent = JSON.stringify(supported, null, 2); $("settlements").textContent = String(records.filter((item) => item.settlementHash).length); if (records[0]) renderRecord(records[0]); $("connection").textContent = "CONNECTED"; status(config.paymentOperational ? "READY — EIP-3009 SETTLEMENT ENABLED" : "READY — SETTLEMENT PAUSED PENDING GAS FUNDING"); }).catch((error) => { $("connection").textContent = "ERROR"; status(error.message, false); });

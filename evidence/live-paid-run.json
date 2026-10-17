@@ -1,0 +1,125 @@
+{
+  "recordedAt": "2026-10-17T21:00:33.081Z",
+  "kind": "REAL_ATLANTIC_EIP3009_PAID_HTTP",
+  "network": {
+    "name": "Pharos Atlantic Testnet",
+    "chainId": 688689,
+    "network": "eip155:688689"
+  },
+  "token": {
+    "address": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+    "name": "USDC",
+    "symbol": "USDC",
+    "decimals": 6,
+    "version": "2",
+    "transferMethod": "EIP-3009"
+  },
+  "identities": {
+    "buyer": true,
+    "facilitator": true,
+    "merchant": true,
+    "secretsPrinted": false
+  },
+  "runId": "live-paid-20261018",
+  "status": "COMPLETED",
+  "debitAtomic": "3000",
+  "debitUSDC": "0.003",
+  "gasSpentWei": "188536000000000",
+  "routes": [
+    {
+      "endpoint": "/paid/network-snapshot",
+      "state": "DATA_RECEIVED",
+      "amountAtomic": "1000",
+      "transactionHash": "0x376eef61781d73522f2e335c7617239b39dc479eae39ca13d909ba5ebb5cec14",
+      "receipt": {
+        "status": "success",
+        "transactionHash": "0x376eef61781d73522f2e335c7617239b39dc479eae39ca13d909ba5ebb5cec14",
+        "blockNumber": "31549804",
+        "gasUsed": "102796",
+        "effectiveGasPrice": "1000000000",
+        "gasCostWei": "102796000000000",
+        "token": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+        "transfer": {
+          "logIndex": 1,
+          "from": "0x29946933492Ca11744941Bc12630852498dAd8D7",
+          "to": "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7",
+          "value": "1000"
+        }
+      },
+      "response": {
+        "kind": "LIVE_CHAIN_DATA",
+        "endpoint": "/paid/network-snapshot",
+        "chainId": 688689,
+        "blockNumber": "31549799",
+        "blockTimestamp": "2026-10-17T20:59:46.000Z",
+        "baseFeePerGasWei": "1000000000",
+        "buyerNativeWei": "0",
+        "merchantNativeWei": "0",
+        "buyerTokenAtomic": "2000000",
+        "merchantTokenAtomic": "0",
+        "fetchedAt": "2026-10-17T21:00:08.794Z",
+        "payment": {
+          "authId": "0x29946933492ca11744941bc12630852498dad8d7:0x6f7ad330f222930d22d9677b5d55cdcc568ff11f4e884f2fa610fd83659829e8",
+          "recovered": false
+        }
+      }
+    },
+    {
+      "endpoint": "/paid/activity-summary",
+      "state": "DATA_RECEIVED",
+      "amountAtomic": "2000",
+      "transactionHash": "0x3ca298502f1d13eaa085ed6a59fb71c23e25568ac747b5eed62187f83614bcf3",
+      "receipt": {
+        "status": "success",
+        "transactionHash": "0x3ca298502f1d13eaa085ed6a59fb71c23e25568ac747b5eed62187f83614bcf3",
+        "blockNumber": "31549827",
+        "gasUsed": "85740",
+        "effectiveGasPrice": "1000000000",
+        "gasCostWei": "85740000000000",
+        "token": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+        "transfer": {
+          "logIndex": 1,
+          "from": "0x29946933492Ca11744941Bc12630852498dAd8D7",
+          "to": "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7",
+          "value": "2000"
+        }
+      },
+      "response": {
+        "kind": "LIVE_CHAIN_DATA",
+        "endpoint": "/paid/activity-summary",
+        "chainId": 688689,
+        "snapshotBlock": "31549799",
+        "windowStartBlock": "31549797",
+        "blocks": [
+          {
+            "blockNumber": "31549797",
+            "transactionCount": 0,
+            "gasUsed": "0",
+            "timestamp": "2026-10-17T20:59:39.000Z"
+          },
+          {
+            "blockNumber": "31549798",
+            "transactionCount": 0,
+            "gasUsed": "0",
+            "timestamp": "2026-10-17T20:59:43.000Z"
+          },
+          {
+            "blockNumber": "31549799",
+            "transactionCount": 0,
+            "gasUsed": "0",
+            "timestamp": "2026-10-17T20:59:46.000Z"
+          }
+        ],
+        "totalTransactions": 0,
+        "fetchedAt": "2026-10-17T21:00:29.279Z",
+        "payment": {
+          "authId": "0x29946933492ca11744941bc12630852498dad8d7:0x9393331367af80e4458a37ee52c3fd3dc671cedb10d6315f63f9bfbf2a8c32e8",
+          "recovered": true
+        }
+      }
+    }
+  ],
+  "explorerBase": "https://atlantic.pharosscan.xyz/tx/",
+  "ownerTokenPrinted": false,
+  "signaturesPublished": false
+}

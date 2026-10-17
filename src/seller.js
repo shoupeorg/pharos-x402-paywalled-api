@@ -4,7 +4,7 @@ import {
   encodePaymentResponseHeader,
 } from "@x402/core/http";
 import { getAddress, parseSignature } from "viem";
-import { MAX_GAS_PER_SETTLEMENT, MAX_GAS_TOTAL, NETWORK } from "./constants.js";
+import { MAX_GAS_PER_SETTLEMENT, MAX_GAS_SPEND_WEI, MAX_GAS_TOTAL, NETWORK } from "./constants.js";
 import { publicClient, readPaidResource, tokenAbi, verifySettlementReceipt } from "./chain.js";
 import { authorizationId, buildPaymentRequired } from "./protocol.js";
 import { SerialExecutor } from "./serial.js";
@@ -141,9 +141,12 @@ export class SellerCoordinator {
       }
       const spentRows = (await env.DB.prepare("SELECT receipt_json FROM seller_receipts WHERE state='SETTLED'").all()).results;
       const actualGas = spentRows.reduce((sum, item) => sum + BigInt(JSON.parse(item.receipt_json || "{}").gasUsed || 0), 0n);
+      const actualGasSpendWei = spentRows.reduce((sum, item) => sum + BigInt(JSON.parse(item.receipt_json || "{}").gasCostWei || 0), 0n);
       const estimate = await estimatedSettlementGas(paymentPayload, env, client);
+      const gasPrice = await client.getGasPrice();
       if (estimate > MAX_GAS_PER_SETTLEMENT) throw new Error(`Settlement gas estimate ${estimate} exceeds per-transaction ceiling ${MAX_GAS_PER_SETTLEMENT}`);
       if (actualGas + estimate > MAX_GAS_TOTAL) throw new Error("Server-side global settlement gas ceiling reached");
+      if (actualGasSpendWei + estimate * gasPrice > MAX_GAS_SPEND_WEI) throw new Error("User-approved 0.0139 PHRS settlement gas ceiling reached");
       const facilitator = this.dependencies.facilitator;
       const verified = await facilitator.verify(paymentPayload, requirements);
       if (!verified.isValid) throw new Error(`Facilitator verification rejected payment: ${verified.invalidReason || "unknown reason"}`);

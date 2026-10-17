@@ -1,10 +1,24 @@
 {
-  "recordedAt": "2026-10-17T16:00:04.871Z",
-  "status": "BLOCKED_FOUNDATION",
-  "realPaymentsBroadcast": 0,
-  "testUsdcSpentAtomic": "0",
-  "phrsGasSpentWei": "0",
+  "recordedAt": "2026-10-17T21:04:00.000Z",
+  "status": "COMPLETE",
+  "network": "eip155:688689",
+  "token": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+  "realPaymentsBroadcast": 2,
+  "testUsdcSpentAtomic": "3000",
+  "testUsdcSpent": "0.003",
+  "phrsGasSpentWei": "188536000000000",
+  "phrsGasSpent": "0.000188536",
+  "approvedPhrsGasCeiling": "0.0139",
   "passingDeterministicTests": 28,
-  "blocker": "The Pharos-documented Atlantic test-USDC lacks EIP-3009 transferWithAuthorization, authorizationState, and DOMAIN_SEPARATOR required by @x402/evm 2.28.0 exact settlement.",
-  "minimumExternalAction": "Pharos must identify or deploy a documented Atlantic test-USDC contract compatible with EIP-3009, document its EIP-712 name/version, and make test tokens available. Only then should PAYMENT_OPERATIONAL be explicitly enabled and the two minimum real payments recorded."
+  "runId": "live-paid-20261018",
+  "transactions": [
+    "0x376eef61781d73522f2e335c7617239b39dc479eae39ca13d909ba5ebb5cec14",
+    "0x3ca298502f1d13eaa085ed6a59fb71c23e25568ac747b5eed62187f83614bcf3"
+  ],
+  "postRunBalances": {
+    "buyerUSDC": "1.997",
+    "merchantUSDC": "0.003",
+    "facilitatorPHRS": "0.099811464",
+    "block": "31549868"
+  }
 }

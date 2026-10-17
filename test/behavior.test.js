@@ -10,7 +10,7 @@ import { ENDPOINTS, NETWORK } from "../src/constants.js";
 import { createDatabase } from "./support/sqlite-d1.js";
 
 const ADDRESSES = {
-  PAYMENT_TOKEN: "0xE0BE08c77f415F577A1B3A9aD7a1Df1479564ec8",
+  PAYMENT_TOKEN: "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
   BUYER_ADDRESS: "0x29946933492Ca11744941Bc12630852498dAd8D7",
   MERCHANT_ADDRESS: "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7",
   FACILITATOR_ADDRESS: "0x87D11811655926EC18C49b936D52B80c64c68dE1",
@@ -175,6 +175,7 @@ test("pending on-chain settlement reconciles after 1,000 blocks without a new de
     readContract: async () => authorizationUsed,
     getLogs: async () => authorizationUsed ? [{ transactionHash: transaction }] : [],
     estimateContractGas: async () => 100n,
+    getGasPrice: async () => 10n,
   };
   const dependencies = {
     seller: {
@@ -246,6 +247,7 @@ test("durable seller claim permits only one facilitator submission across coordi
     getBlock: async () => ({ number: 500n, timestamp: 100n }),
     readContract: async () => false,
     estimateContractGas: async () => 100n,
+    getGasPrice: async () => 10n,
   };
   env.__TEST_DEPENDENCIES = { seller: {
     publicClient: () => client,

@@ -1,6 +1,6 @@
 ---
 name: pharos-x402-paywalled-api
-description: Inspect and demonstrate a Pharos Atlantic x402 paywalled API, its exact HTTP 402 challenges, safe negative cases, persistent evidence, and foundation compatibility status. Use when an agent must review the Pharos x402 Paywalled API submission without exposing secrets or broadcasting unsupported payments.
+description: Inspect and demonstrate an operational Pharos Atlantic x402 paywalled API, exact HTTP 402 challenges, safe negative cases, persistent paid evidence, and recovery behavior without exposing secrets.
 license: MIT
 ---
 
@@ -42,9 +42,9 @@ Set `PHAROS_PAYWALL_URL` only to review another deployment of this project.
 4. Negative demos are fresh public HTTP actions and must persist zero debit and no settlement hash.
 5. History is recorded evidence; never describe a deterministic test or negative request as a successful payment.
 
-The currently documented Atlantic test-USDC address is `0xE0BE08c77f415F577A1B3A9aD7a1Df1479564ec8`, 6 decimals. The recorded foundation probe shows that it lacks `transferWithAuthorization`, `authorizationState`, and `DOMAIN_SEPARATOR`, while `@x402/evm` 2.28.0 exact requires EIP-3009. Therefore real settlement is **BLOCKED** and `PAYMENT_OPERATIONAL=false` is intentional.
+The official Atlantic test USDC is `0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B`, 6 decimals, EIP-712 name `USDC`, version `2`. It exposes `transferWithAuthorization`, `authorizationState`, and `DOMAIN_SEPARATOR`, matching the EIP-3009 flow in `@x402/evm` 2.28.0. Permit2 is not used.
 
-Do not request funding until a documented EIP-3009-compatible Atlantic test-USDC and its authoritative EIP-712 domain are available. Do not enable settlement, invent domain metadata, expose keys, or broadcast a transaction to test this incompatible token.
+Spending actions remain owner-authenticated. Do not expose keys, reusable signatures, or the owner token. Never initiate a new paid run merely to review the submission; use `history` and run `live-paid-20261018` unless the owner explicitly authorizes additional test-token spending.
 
 ## Evidence interpretation
 
@@ -52,6 +52,7 @@ Do not request funding until a documented EIP-3009-compatible Atlantic test-USDC
 - `MISSING_PAYMENT`: real HTTP 402 challenge.
 - `INVALID_PAYMENT`: malformed header rejected, zero spend.
 - `UNDERPAYMENT`: SDK-signed lower amount rejected before settlement, zero spend.
-- `BLOCKED_FOUNDATION`: no successful paid route, receipt, or `PAYMENT-RESPONSE` is claimed.
+- `PAID_ROUTE_A` / `PAID_ROUTE_B`: real HTTP 200 paid responses with successful receipts and exact token transfers.
+- `live-paid-20261018`: the authoritative two-route real demonstration, totaling `0.003 USDC`.
 
-If a future compatible configuration is explicitly verified and enabled, accept paid data only after a successful receipt and exact token `Transfer`. On ambiguity, retain durable pending state and reconcile the same authorization; never create a replacement payment blindly.
+Accept paid data only after a successful receipt and exact token `Transfer`. On ambiguity, retain durable pending state and reconcile the same authorization; never create a replacement payment blindly.

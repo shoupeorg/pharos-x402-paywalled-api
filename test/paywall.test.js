@@ -8,7 +8,7 @@ import { EvidenceStore } from "../src/evidence-store.js";
 import { recordBrowserDemo } from "../src/demos.js";
 import { createDatabase } from "./support/sqlite-d1.js";
 
-const TOKEN = "0xE0BE08c77f415F577A1B3A9aD7a1Df1479564ec8";
+const TOKEN = "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B";
 const MERCHANT = "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7";
 
 function fixture() {
@@ -25,7 +25,7 @@ function fixture() {
     MERCHANT_ADDRESS: MERCHANT,
     FACILITATOR_ADDRESS: privateKeyToAccount(generatePrivateKey()).address,
     OWNER_TOKEN: "owner-test-token",
-    PAYMENT_OPERATIONAL: "false",
+    PAYMENT_OPERATIONAL: "true",
     __TEST_DEPENDENCIES: { publicClient: () => chain, seller: { publicClient: () => chain } },
     SELLER: { idFromName: () => "seller", get: () => ({ fetch: async () => { throw new Error("seller must not be reached for rejected input"); } }) },
   };
@@ -70,7 +70,7 @@ test("malformed and correctly signed underpayment return 402 before seller or pa
   assert.match((await underpaid.json()).error, /does not satisfy/);
 });
 
-test("facilitator allowlist rejects wrong chain, token, recipient, amount and settlement stays disabled", async (t) => {
+test("facilitator allowlist rejects wrong chain, token, recipient and amount", async (t) => {
   const { db, env } = fixture(); t.after(() => db.close());
   const required = buildPaymentRequired({ origin: env.PUBLIC_ORIGIN, path: "/paid/network-snapshot", snapshotBlock: "12345", env });
   const payload = await makeBuyerClient(env).createPaymentPayload(required);
@@ -84,9 +84,6 @@ test("facilitator allowlist rejects wrong chain, token, recipient, amount and se
     const copy = structuredClone(required.accepts[0]); mutate(copy);
     assert.throws(() => assertAllowlistedFacilitatorRequest(payload, copy, env));
   }
-  const settlement = await app.request("https://paywall.test/settle", { method: "POST", headers: { authorization: `Bearer ${env.OWNER_TOKEN}`, "content-type": "application/json" }, body: JSON.stringify({ paymentPayload: payload, paymentRequirements: required.accepts[0] }) }, env);
-  assert.equal(settlement.status, 503);
-  assert.match((await settlement.json()).errorReason, /does not expose EIP-3009/);
 });
 
 test("safe HTTP evidence persists exact status and zero debit", async (t) => {

@@ -12,7 +12,7 @@ import { SerialExecutor } from "./serial.js";
 import { EvidenceStore } from "./evidence-store.js";
 import { browserDemoTarget, prepareUnderpaymentDemo, recordBrowserDemo } from "./demos.js";
 
-const COMPATIBILITY_BLOCKER = "The documented Atlantic test-USDC contract does not expose EIP-3009 transferWithAuthorization/authorizationState or an EIP-712 DOMAIN_SEPARATOR; the official x402 v2 exact EVM scheme cannot settle it.";
+const SETTLEMENT_PAUSED = "Settlement is paused until the dedicated facilitator has the minimum PHRS gas funding and the owner enables PAYMENT_OPERATIONAL.";
 
 const securityHeaders = {
   "Cache-Control": "no-store",
@@ -86,9 +86,11 @@ app.get("/api/config", async (c) => {
       client.readContract({ address: c.env.PAYMENT_TOKEN, abi: tokenAbi, functionName: "DOMAIN_SEPARATOR" }),
     ]);
     const value = (index) => reads[index].status === "fulfilled" ? reads[index].value : null;
-    token = { address: getAddress(c.env.PAYMENT_TOKEN), name: value(0), symbol: value(1), decimals: value(2), version: value(3), domainSeparator: value(4), codeBytes: (tokenCode.length - 2) / 2, eip3009Compatible: false, documentationStatus: "Documented by Pharos as a test USDC address that is not official" };
+    const eip3009Compatible = value(0) === "USDC" && value(1) === "USDC" && Number(value(2)) === 6 && value(3) === "2" && /^0x[0-9a-f]{64}$/i.test(value(4) || "");
+    token = { address: getAddress(c.env.PAYMENT_TOKEN), name: value(0), symbol: value(1), decimals: value(2), version: value(3), domainSeparator: value(4), codeBytes: (tokenCode.length - 2) / 2, eip3009Compatible, documentationStatus: "Listed in the official Pharos Atlantic Token Registry; Circle FiatToken proxy implementation verified on PharosScan" };
   }
-  return c.json({ ready: Boolean(configured), paymentOperational: false, blocker: COMPATIBILITY_BLOCKER, chain: { name: CHAIN_NAME, chainId: CHAIN_ID, network: NETWORK, latestBlock: (await client.getBlockNumber()).toString(), explorer: EXPLORER_URL }, protocolVersion: PROTOCOL_VERSION, paymentAsset: token, buyer: c.env.BUYER_ADDRESS || null, merchant: c.env.MERCHANT_ADDRESS || null, facilitator: c.env.FACILITATOR_ADDRESS || null, endpoints: [{ path: "/health", price: "FREE" }, ...ENDPOINTS.map((item) => ({ ...item, price: `${formatUnitsExact(item.priceAtomic, TOKEN_DECIMALS)} ${TOKEN_SYMBOL}` }))], retryPolicy: { maxAttempts: RETRY_DELAYS_MS.length, delaysMs: RETRY_DELAYS_MS, sameAuthorizationOnly: true }, disclosure: "The seller and facilitator are operated by this project. No successful payment is claimed while the documented token is incompatible with the SDK scheme." });
+  const paymentOperational = Boolean(configured && token?.eip3009Compatible && c.env.PAYMENT_OPERATIONAL === "true");
+  return c.json({ ready: Boolean(configured && token?.eip3009Compatible), paymentOperational, blocker: paymentOperational ? null : SETTLEMENT_PAUSED, chain: { name: CHAIN_NAME, chainId: CHAIN_ID, network: NETWORK, latestBlock: (await client.getBlockNumber()).toString(), explorer: EXPLORER_URL }, protocolVersion: PROTOCOL_VERSION, paymentAsset: token, buyer: c.env.BUYER_ADDRESS || null, merchant: c.env.MERCHANT_ADDRESS || null, facilitator: c.env.FACILITATOR_ADDRESS || null, endpoints: [{ path: "/health", price: "FREE" }, ...ENDPOINTS.map((item) => ({ ...item, price: `${formatUnitsExact(item.priceAtomic, TOKEN_DECIMALS)} ${TOKEN_SYMBOL}` }))], retryPolicy: { maxAttempts: RETRY_DELAYS_MS.length, delaysMs: RETRY_DELAYS_MS, sameAuthorizationOnly: true }, disclosure: "The seller and facilitator are operated by this project. The official SDK EIP-3009 exact scheme is used; Permit2 is not used." });
 });
 
 app.get("/api/evidence", async (c) => c.json({ runs: await new BuyerStore(c.env.DB).listReviewerTasks() }));
@@ -103,6 +105,10 @@ app.get("/api/verify-secrets", (c) => {
   const denied = requireOwner(c); if (denied) return denied;
   const derived = (secret, expected) => Boolean(secret && expected && getAddress(privateKeyToAccount(secret).address) === getAddress(expected));
   return c.json({ buyer: derived(c.env.BUYER_PRIVATE_KEY, c.env.BUYER_ADDRESS), facilitator: derived(c.env.FACILITATOR_PRIVATE_KEY, c.env.FACILITATOR_ADDRESS), merchant: derived(c.env.MERCHANT_PRIVATE_KEY, c.env.MERCHANT_ADDRESS), ownerTokenPresent: Boolean(c.env.OWNER_TOKEN), secretsPrinted: false });
+});
+app.get("/api/identity-status", (c) => {
+  const derived = (secret, expected) => Boolean(secret && expected && getAddress(privateKeyToAccount(secret).address) === getAddress(expected));
+  return c.json({ buyer: derived(c.env.BUYER_PRIVATE_KEY, c.env.BUYER_ADDRESS), facilitator: derived(c.env.FACILITATOR_PRIVATE_KEY, c.env.FACILITATOR_ADDRESS), merchant: derived(c.env.MERCHANT_PRIVATE_KEY, c.env.MERCHANT_ADDRESS), secretsPrinted: false });
 });
 app.get("/api/tasks/:id", async (c) => {
   const snapshot = await new BuyerStore(c.env.DB).snapshot(c.req.param("id"));
@@ -127,8 +133,8 @@ app.post("/api/run/:kind", async (c) => {
 app.get("/paid/network-snapshot", (c) => handlePaidRequest(c.req.raw, c.env));
 app.get("/paid/activity-summary", (c) => handlePaidRequest(c.req.raw, c.env));
 app.get("/health", async (c) => c.json({ ok: true, free: true, paymentRequired: false, chainId: await (c.env.__TEST_DEPENDENCIES?.publicClient || publicClient)().getChainId(), network: NETWORK, worker: "pharos-x402-paywalled-api", timestamp: new Date().toISOString() }));
-app.get("/api/health", async (c) => c.json({ ok: true, chainId: await (c.env.__TEST_DEPENDENCIES?.publicClient || publicClient)().getChainId(), worker: "pharos-x402-paywalled-api", paymentOperational: false, blocker: COMPATIBILITY_BLOCKER }));
-app.get("/supported", (c) => c.json({ ...makeFacilitator(c.env).getSupported(), operational: false, blocker: COMPATIBILITY_BLOCKER, allowlistedAsset: c.env.PAYMENT_TOKEN, allowlistedRoutes: ENDPOINTS.map((item) => item.path) }));
+app.get("/api/health", async (c) => c.json({ ok: true, chainId: await (c.env.__TEST_DEPENDENCIES?.publicClient || publicClient)().getChainId(), worker: "pharos-x402-paywalled-api", paymentOperational: c.env.PAYMENT_OPERATIONAL === "true", blocker: c.env.PAYMENT_OPERATIONAL === "true" ? null : SETTLEMENT_PAUSED }));
+app.get("/supported", (c) => c.json({ ...makeFacilitator(c.env).getSupported(), operational: c.env.PAYMENT_OPERATIONAL === "true", blocker: c.env.PAYMENT_OPERATIONAL === "true" ? null : SETTLEMENT_PAUSED, allowlistedAsset: c.env.PAYMENT_TOKEN, allowlistedRoutes: ENDPOINTS.map((item) => item.path) }));
 app.post("/verify", async (c) => {
   try {
     const { paymentPayload, paymentRequirements } = await c.req.json();
@@ -138,7 +144,7 @@ app.post("/verify", async (c) => {
 });
 app.post("/settle", async (c) => {
   const denied = requireOwner(c); if (denied) return denied;
-  if (c.env.PAYMENT_OPERATIONAL !== "true") return c.json({ success: false, errorReason: COMPATIBILITY_BLOCKER }, 503);
+  if (c.env.PAYMENT_OPERATIONAL !== "true") return c.json({ success: false, errorReason: SETTLEMENT_PAUSED }, 503);
   try {
     const { paymentPayload, paymentRequirements } = await c.req.json();
     assertAllowlistedFacilitatorRequest(paymentPayload, paymentRequirements, c.env);
