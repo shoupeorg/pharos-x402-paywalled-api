@@ -1,0 +1,217 @@
+{
+  "recordedAt": "2026-10-17T23:12:24.073Z",
+  "kind": "REAL_FRESH_PUBLIC_HTTP_ROUTE_A_PAYMENT",
+  "disclosure": "This is a fresh Route A public HTTP lifecycle. Reusable PAYMENT-SIGNATURE bytes and signer secrets are deliberately omitted.",
+  "runId": "fresh-public-http-route-a-20261018",
+  "network": {
+    "name": "Pharos Atlantic Testnet",
+    "chainId": 688689,
+    "network": "eip155:688689"
+  },
+  "token": {
+    "address": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+    "symbol": "USDC",
+    "decimals": 6,
+    "mechanism": "EIP-3009"
+  },
+  "limits": {
+    "maximumDebitAtomic": "1000",
+    "maximumAdditionalGasWei": "300000000000000",
+    "maximumSettlements": 1
+  },
+  "readOnlyPrecheck": {
+    "blockNumber": "31553357",
+    "buyerTokenBalanceAtomic": "1997000",
+    "merchantTokenBalanceAtomic": "3000",
+    "facilitatorNativeBalanceWei": "99811464000000000",
+    "observedGasPriceWei": "10000000000"
+  },
+  "unpaidChallenge": {
+    "id": "challenge:fresh-public-http-route-a-20261018:network-snapshot",
+    "kind": "FRESH_HTTP_402_ROUTE_A",
+    "label": "Paid Network Snapshot — public HTTP unpaid challenge",
+    "route": "/paid/network-snapshot",
+    "request": {
+      "method": "GET",
+      "transport": "PUBLIC_WORKER_HTTP",
+      "url": "https://pharos-x402-paywalled-api.shoupeorg.workers.dev/paid/network-snapshot?block=31553359",
+      "paymentSignaturePresent": false,
+      "runId": "fresh-public-http-route-a-20261018"
+    },
+    "responseStatus": 402,
+    "responseHeaders": {
+      "paymentRequired": {
+        "present": true,
+        "rawPublished": false
+      },
+      "paymentResponse": null
+    },
+    "responseBody": {
+      "x402Version": 2,
+      "resource": {
+        "url": "https://pharos-x402-paywalled-api.shoupeorg.workers.dev/paid/network-snapshot?block=31553359",
+        "description": "Paid Network Snapshot at pinned Atlantic block 31553359",
+        "mimeType": "application/json"
+      },
+      "accepts": [
+        {
+          "scheme": "exact",
+          "network": "eip155:688689",
+          "amount": "1000",
+          "asset": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+          "payTo": "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7",
+          "maxTimeoutSeconds": 300,
+          "extra": {
+            "name": "USDC",
+            "version": "2",
+            "assetTransferMethod": "eip3009",
+            "chainId": 688689
+          }
+        }
+      ]
+    },
+    "decodedRequirements": {
+      "scheme": "exact",
+      "network": "eip155:688689",
+      "asset": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+      "payTo": "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7",
+      "amount": "1000"
+    },
+    "settlementHash": null,
+    "debitAtomic": "0",
+    "createdAt": "2026-10-17T23:11:55.543Z"
+  },
+  "facilitator": {
+    "verification": {
+      "isValid": true
+    },
+    "preflight": {
+      "checkedAt": "2026-10-17T23:12:06.193Z",
+      "blockNumber": "31553361",
+      "chainTimestamp": "1792278718",
+      "buyerTokenBalanceAtomic": "1997000",
+      "merchantTokenBalanceAtomic": "3000",
+      "facilitatorNativeBalanceWei": "99811464000000000",
+      "debitAtomic": "1000",
+      "gasEstimate": "112407",
+      "feeModel": "EIP1559_MAX_FEE",
+      "feeCeilingPerGasWei": "1200000000",
+      "maxPriorityFeePerGasWei": "0",
+      "estimatedGasCostWei": "134888400000000",
+      "authorizedAdditionalGasCeilingWei": "300000000000000",
+      "totalGasCeilingWei": "13900000000000000",
+      "verification": {
+        "isValid": true
+      },
+      "persistedBeforeBroadcast": true
+    },
+    "settlementSubmittedOnce": true
+  },
+  "paidResponse": {
+    "id": "paid:fresh-public-http-route-a-20261018:network-snapshot",
+    "kind": "FRESH_PUBLIC_HTTP_ROUTE_A",
+    "label": "Paid Network Snapshot — fresh public HTTP EIP-3009 settlement",
+    "route": "/paid/network-snapshot",
+    "request": {
+      "method": "GET",
+      "transport": "PUBLIC_WORKER_HTTP",
+      "url": "https://pharos-x402-paywalled-api.shoupeorg.workers.dev/paid/network-snapshot?block=31553359",
+      "paymentSignaturePresent": true,
+      "signaturePublished": false,
+      "runId": "fresh-public-http-route-a-20261018"
+    },
+    "responseStatus": 200,
+    "responseHeaders": {
+      "paymentRequired": null,
+      "paymentResponse": {
+        "present": true,
+        "rawPublished": false,
+        "decoded": {
+          "success": true,
+          "transaction": "0x10cf99b6c4e561110ec0eeda6466ab102be1ad7e9cd363e85523fbe1144a6bec",
+          "network": "eip155:688689"
+        }
+      }
+    },
+    "responseBody": {
+      "kind": "LIVE_CHAIN_DATA",
+      "endpoint": "/paid/network-snapshot",
+      "chainId": 688689,
+      "blockNumber": "31553359",
+      "blockTimestamp": "2026-10-17T23:11:51.000Z",
+      "baseFeePerGasWei": "1000000000",
+      "buyerNativeWei": "0",
+      "merchantNativeWei": "0",
+      "buyerTokenAtomic": "1997000",
+      "merchantTokenAtomic": "3000",
+      "fetchedAt": "2026-10-17T23:12:14.753Z",
+      "payment": {
+        "authId": "0x29946933492ca11744941bc12630852498dad8d7:0xa7b173c08ea7bd448ac5558a30f2eb5977b0778d2f8aaba0795a4206326993a3",
+        "recovered": false,
+        "preflight": {
+          "checkedAt": "2026-10-17T23:12:06.193Z",
+          "blockNumber": "31553361",
+          "chainTimestamp": "1792278718",
+          "buyerTokenBalanceAtomic": "1997000",
+          "merchantTokenBalanceAtomic": "3000",
+          "facilitatorNativeBalanceWei": "99811464000000000",
+          "debitAtomic": "1000",
+          "gasEstimate": "112407",
+          "feeModel": "EIP1559_MAX_FEE",
+          "feeCeilingPerGasWei": "1200000000",
+          "maxPriorityFeePerGasWei": "0",
+          "estimatedGasCostWei": "134888400000000",
+          "authorizedAdditionalGasCeilingWei": "300000000000000",
+          "totalGasCeilingWei": "13900000000000000",
+          "verification": {
+            "isValid": true
+          },
+          "persistedBeforeBroadcast": true
+        }
+      }
+    },
+    "decodedRequirements": {
+      "scheme": "exact",
+      "network": "eip155:688689",
+      "asset": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+      "payTo": "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7",
+      "amount": "1000"
+    },
+    "settlementHash": "0x10cf99b6c4e561110ec0eeda6466ab102be1ad7e9cd363e85523fbe1144a6bec",
+    "debitAtomic": "1000",
+    "createdAt": "2026-10-17T23:12:17.388Z"
+  },
+  "receipt": {
+    "status": "success",
+    "transactionHash": "0x10cf99b6c4e561110ec0eeda6466ab102be1ad7e9cd363e85523fbe1144a6bec",
+    "blockNumber": "31553364",
+    "gasUsed": "85740",
+    "effectiveGasPrice": "1000000000",
+    "gasCostWei": "85740000000000",
+    "token": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+    "transfer": {
+      "logIndex": 1,
+      "from": "0x29946933492Ca11744941Bc12630852498dAd8D7",
+      "to": "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7",
+      "value": "1000"
+    }
+  },
+  "explorerUrl": "https://atlantic.pharosscan.xyz/tx/0x10cf99b6c4e561110ec0eeda6466ab102be1ad7e9cd363e85523fbe1144a6bec",
+  "postcheck": {
+    "blockNumber": "31553378",
+    "buyerTokenBalanceAtomic": "1996000",
+    "merchantTokenBalanceAtomic": "4000",
+    "facilitatorNativeBalanceWei": "99725724000000000",
+    "buyerDebitAtomic": "1000",
+    "merchantCreditAtomic": "1000",
+    "actualGasWei": "85740000000000"
+  },
+  "routeB": {
+    "state": "STOPPED_BUDGET",
+    "reason": "Confirmed 1000 + reserved 0 + proposed 2000 exceeds budget 1000",
+    "authorizationCreated": false,
+    "debitAtomic": "0"
+  },
+  "signaturesPublished": false,
+  "secretsPrinted": false
+}

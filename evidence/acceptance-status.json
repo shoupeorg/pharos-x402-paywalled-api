@@ -1,27 +1,31 @@
 {
-  "recordedAt": "2026-10-17T21:04:00.000Z",
-  "status": "PARTIAL_PENDING_FRESH_PUBLIC_HTTP_SETTLEMENT_EVIDENCE",
+  "recordedAt": "2026-10-17T23:12:24.073Z",
+  "status": "COMPLETE_WITH_FRESH_PUBLIC_HTTP_PAYMENT",
   "network": "eip155:688689",
   "token": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
-  "realPaymentsBroadcast": 2,
+  "realPaymentsBroadcast": 3,
   "historicalBuyerTransport": "IN_PROCESS_WORKER_CALL",
   "transportCorrection": "Receipts and accounting are real, but the original initial buyer-to-seller calls were not external HTTP. Production code now uses public HTTP; recovery replay is recorded separately.",
   "httpRecoveryEvidenceFile": "evidence/http-recovery-replay.json",
-  "testUsdcSpentAtomic": "3000",
-  "testUsdcSpent": "0.003",
-  "phrsGasSpentWei": "188536000000000",
-  "phrsGasSpent": "0.000188536",
+  "testUsdcSpentAtomic": "4000",
+  "testUsdcSpent": "0.004",
+  "phrsGasSpentWei": "274276000000000",
+  "phrsGasSpent": "0.000274276",
   "approvedPhrsGasCeiling": "0.0139",
-  "passingDeterministicTests": 30,
+  "passingDeterministicTests": 31,
   "runId": "live-paid-20261018",
   "transactions": [
     "0x376eef61781d73522f2e335c7617239b39dc479eae39ca13d909ba5ebb5cec14",
-    "0x3ca298502f1d13eaa085ed6a59fb71c23e25568ac747b5eed62187f83614bcf3"
+    "0x3ca298502f1d13eaa085ed6a59fb71c23e25568ac747b5eed62187f83614bcf3",
+    "0x10cf99b6c4e561110ec0eeda6466ab102be1ad7e9cd363e85523fbe1144a6bec"
   ],
   "postRunBalances": {
-    "buyerUSDC": "1.997",
-    "merchantUSDC": "0.003",
-    "facilitatorPHRS": "0.099811464",
-    "block": "31549868"
-  }
+    "buyerUSDC": "1.996",
+    "merchantUSDC": "0.004",
+    "facilitatorPHRS": "0.099725724",
+    "block": "31553378"
+  },
+  "freshPublicHttpEvidenceFile": "evidence/fresh-public-http-route-a.json",
+  "freshPublicHttpRunId": "fresh-public-http-route-a-20261018",
+  "freshPublicHttpTransaction": "0x10cf99b6c4e561110ec0eeda6466ab102be1ad7e9cd363e85523fbe1144a6bec"
 }

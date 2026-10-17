@@ -56,7 +56,9 @@ Full historical evidence is in [evidence/live-paid-run.json](evidence/live-paid-
 <!-- FRESH_HTTP_EVIDENCE_START -->
 ### Fresh public HTTP Route A proof
 
-Pending one authorized bounded run. The runner refuses more than `0.001 USDC`, more than one settlement, or an estimated/actual additional gas cost above `0.0003 PHRS`.
+Run `fresh-public-http-route-a-20261018` recorded the complete deployed lifecycle: public unauthenticated HTTP 402, fresh SDK-signed request over public HTTP, facilitator verification, one settlement, successful receipt, and HTTP 200 with a decoded `PAYMENT-RESPONSE`. It debited exactly `0.001 USDC`. The pre-broadcast estimate was `134888400000000 wei`; actual gas was `85740000000000 wei` (`0.00008574 PHRS`), below the independently enforced `0.0003 PHRS` ceiling.
+
+Settlement: [0x10cf99b6…a6bec](https://atlantic.pharosscan.xyz/tx/0x10cf99b6c4e561110ec0eeda6466ab102be1ad7e9cd363e85523fbe1144a6bec), receipt success at block `31553364`. Route B was stopped before authorization because the run budget was exactly `0.001 USDC`, so this run created one—and only one—new settlement. Sanitized evidence: [evidence/fresh-public-http-route-a.json](evidence/fresh-public-http-route-a.json). No reusable payment signature or secret is published.
 <!-- FRESH_HTTP_EVIDENCE_END -->
 
 ## Facilitator, limits, and durability
@@ -123,7 +125,7 @@ powershell.exe -ExecutionPolicy Bypass -File .\scripts\deploy-cloudflare.ps1
 | Atlantic test USDC and exact prices | PASS | Official registry, live proxy reads, 6 decimals, real exact `0.001` and `0.002 USDC` debits |
 | Free + two distinct paid resources | PASS | `/health`, `/paid/network-snapshot`, and `/paid/activity-summary` with distinct prices |
 | Own operational facilitator | PASS | `/supported`, `/verify`, `/settle`, strict allowlist, and two successful real receipts |
-| Complete deployed external HTTP payment lifecycle | PARTIAL | Production buyer now uses public HTTP and deployed recovery can prove HTTP 200 + `PAYMENT-RESPONSE` without spending. The original initial flows used in-process seller calls, so a fresh initial public-HTTP settlement remains unproved. |
+| Complete deployed external HTTP payment lifecycle | PASS | Fresh Route A evidence records public HTTP 402, SDK-signed public HTTP payment, facilitator verification/settlement, successful receipt, and HTTP 200 with decoded `PAYMENT-RESPONSE`. Historical in-process evidence remains accurately labeled. |
 | Durable accounting, replay protection, and rejection | PASS | D1 guards, restart/lost-response recovery, invalid and signed-underpayment HTTP 402 with zero debit |
 | Secret isolation and spending limits | PASS | Boolean signer checks, no published signatures/keys, and enforced `0.0139 PHRS` ceiling |
 
