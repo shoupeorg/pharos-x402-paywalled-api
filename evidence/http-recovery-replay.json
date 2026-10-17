@@ -1,0 +1,145 @@
+{
+  "recordedAt": "2026-10-17T22:36:46.108Z",
+  "kind": "PUBLIC_HTTP_RECOVERY_OF_EXISTING_SETTLEMENTS",
+  "disclosure": "This proves deployed HTTP recovery and PAYMENT-RESPONSE handling for previously settled authorizations. It is not a fresh initial settlement flow.",
+  "runId": "live-paid-20261018",
+  "accountingBefore": {
+    "confirmedAtomic": "3000",
+    "reservedAtomic": "0"
+  },
+  "accountingAfter": {
+    "confirmedAtomic": "3000",
+    "reservedAtomic": "0"
+  },
+  "records": [
+    {
+      "id": "http-recovery:live-paid-20261018:network-snapshot",
+      "kind": "HTTP_RECOVERY_ROUTE_A",
+      "label": "Paid Network Snapshot — public HTTP recovery of existing settlement",
+      "route": "/paid/network-snapshot",
+      "request": {
+        "method": "GET",
+        "transport": "PUBLIC_WORKER_HTTP_RECOVERY",
+        "url": "https://pharos-x402-paywalled-api.shoupeorg.workers.dev/paid/network-snapshot?block=31549799",
+        "paymentSignaturePresent": true,
+        "signaturePublished": false,
+        "runId": "live-paid-20261018",
+        "createsNewPayment": false
+      },
+      "responseStatus": 200,
+      "responseHeaders": {
+        "paymentRequired": null,
+        "paymentResponse": {
+          "present": true,
+          "rawPublished": false,
+          "decoded": {
+            "success": true,
+            "transaction": "0x376eef61781d73522f2e335c7617239b39dc479eae39ca13d909ba5ebb5cec14",
+            "network": "eip155:688689"
+          }
+        }
+      },
+      "responseBody": {
+        "kind": "LIVE_CHAIN_DATA",
+        "endpoint": "/paid/network-snapshot",
+        "chainId": 688689,
+        "blockNumber": "31549799",
+        "blockTimestamp": "2026-10-17T20:59:46.000Z",
+        "baseFeePerGasWei": "1000000000",
+        "buyerNativeWei": "0",
+        "merchantNativeWei": "0",
+        "buyerTokenAtomic": "2000000",
+        "merchantTokenAtomic": "0",
+        "fetchedAt": "2026-10-17T21:00:08.794Z",
+        "payment": {
+          "authId": "0x29946933492ca11744941bc12630852498dad8d7:0x6f7ad330f222930d22d9677b5d55cdcc568ff11f4e884f2fa610fd83659829e8",
+          "recovered": true
+        }
+      },
+      "decodedRequirements": {
+        "scheme": "exact",
+        "network": "eip155:688689",
+        "asset": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+        "payTo": "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7",
+        "amount": "1000"
+      },
+      "settlementHash": "0x376eef61781d73522f2e335c7617239b39dc479eae39ca13d909ba5ebb5cec14",
+      "debitAtomic": "0",
+      "createdAt": "2026-10-17T22:36:45.176Z"
+    },
+    {
+      "id": "http-recovery:live-paid-20261018:activity-summary",
+      "kind": "HTTP_RECOVERY_ROUTE_B",
+      "label": "Paid Activity Summary — public HTTP recovery of existing settlement",
+      "route": "/paid/activity-summary",
+      "request": {
+        "method": "GET",
+        "transport": "PUBLIC_WORKER_HTTP_RECOVERY",
+        "url": "https://pharos-x402-paywalled-api.shoupeorg.workers.dev/paid/activity-summary?block=31549799",
+        "paymentSignaturePresent": true,
+        "signaturePublished": false,
+        "runId": "live-paid-20261018",
+        "createsNewPayment": false
+      },
+      "responseStatus": 200,
+      "responseHeaders": {
+        "paymentRequired": null,
+        "paymentResponse": {
+          "present": true,
+          "rawPublished": false,
+          "decoded": {
+            "success": true,
+            "transaction": "0x3ca298502f1d13eaa085ed6a59fb71c23e25568ac747b5eed62187f83614bcf3",
+            "network": "eip155:688689"
+          }
+        }
+      },
+      "responseBody": {
+        "kind": "LIVE_CHAIN_DATA",
+        "endpoint": "/paid/activity-summary",
+        "chainId": 688689,
+        "snapshotBlock": "31549799",
+        "windowStartBlock": "31549797",
+        "blocks": [
+          {
+            "blockNumber": "31549797",
+            "transactionCount": 0,
+            "gasUsed": "0",
+            "timestamp": "2026-10-17T20:59:39.000Z"
+          },
+          {
+            "blockNumber": "31549798",
+            "transactionCount": 0,
+            "gasUsed": "0",
+            "timestamp": "2026-10-17T20:59:43.000Z"
+          },
+          {
+            "blockNumber": "31549799",
+            "transactionCount": 0,
+            "gasUsed": "0",
+            "timestamp": "2026-10-17T20:59:46.000Z"
+          }
+        ],
+        "totalTransactions": 0,
+        "fetchedAt": "2026-10-17T21:00:29.279Z",
+        "payment": {
+          "authId": "0x29946933492ca11744941bc12630852498dad8d7:0x9393331367af80e4458a37ee52c3fd3dc671cedb10d6315f63f9bfbf2a8c32e8",
+          "recovered": true
+        }
+      },
+      "decodedRequirements": {
+        "scheme": "exact",
+        "network": "eip155:688689",
+        "asset": "0xcfC8330f4BCAB529c625D12781b1C19466A9Fc8B",
+        "payTo": "0x0913E25b83ee4367dEE8f9011E95351e60BF02d7",
+        "amount": "2000"
+      },
+      "settlementHash": "0x3ca298502f1d13eaa085ed6a59fb71c23e25568ac747b5eed62187f83614bcf3",
+      "debitAtomic": "0",
+      "createdAt": "2026-10-17T22:36:47.668Z"
+    }
+  ],
+  "newTransactions": 0,
+  "newDebitAtomic": "0",
+  "signaturesPublished": false
+}
