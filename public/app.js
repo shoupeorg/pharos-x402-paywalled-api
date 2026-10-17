@@ -36,7 +36,7 @@ async function runBrowserDemo(kind) {
   renderRecord(result); await refresh();
 }
 async function facilitator() { const result = await request("/supported"); $("supported").textContent = JSON.stringify(result, null, 2); status("FACILITATOR EVIDENCE LOADED"); }
-function paid(route) { const recoveryKind = route === "PAID_ROUTE_A" ? "HTTP_RECOVERY_ROUTE_A" : "HTTP_RECOVERY_ROUTE_B"; const row = records.find((item) => item.kind === recoveryKind) || records.find((item) => item.kind === route); if (!row) throw new Error("No real paid evidence has been recorded for this route yet."); renderRecord(row); }
+function paid(route) { const freshKind = route === "PAID_ROUTE_A" ? "FRESH_PUBLIC_HTTP_ROUTE_A" : "FRESH_PUBLIC_HTTP_ROUTE_B"; const recoveryKind = route === "PAID_ROUTE_A" ? "HTTP_RECOVERY_ROUTE_A" : "HTTP_RECOVERY_ROUTE_B"; const row = records.find((item) => item.kind === freshKind) || records.find((item) => item.kind === recoveryKind) || records.find((item) => item.kind === route); if (!row) throw new Error("No real paid evidence has been recorded for this route yet."); renderRecord(row); }
 $("free-health").addEventListener("click", () => runBrowserDemo("FREE_HEALTH").catch((error) => status(error.message, false)));
 $("missing-payment").addEventListener("click", () => runBrowserDemo("MISSING_PAYMENT").catch((error) => status(error.message, false)));
 $("invalid-payment").addEventListener("click", () => runBrowserDemo("INVALID_PAYMENT").catch((error) => status(error.message, false)));

@@ -15,5 +15,7 @@ export const ENDPOINTS = Object.freeze([
 ]);
 export const RETRY_DELAYS_MS = Object.freeze([0, 250, 750]);
 export const MAX_GAS_PER_SETTLEMENT = 160000n;
+// Per-transaction ceiling authorized for the fresh public-HTTP Route A proof.
+export const MAX_ADDITIONAL_GAS_SPEND_WEI = 300000000000000n;
 export const MAX_GAS_TOTAL = 2000000n;
 export const MAX_GAS_SPEND_WEI = 13900000000000000n;

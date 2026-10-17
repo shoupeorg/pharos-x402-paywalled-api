@@ -51,11 +51,17 @@ The production buyer has since been corrected to use `fetch(PUBLIC_ORIGIN + paid
 
 The deployed replay command writes [evidence/http-recovery-replay.json](evidence/http-recovery-replay.json) and persists the same safe records in `/api/http-evidence`.
 
-Full historical evidence is in [evidence/live-paid-run.json](evidence/live-paid-run.json). A fresh full `402 → signed public HTTP request → new settlement → 200` demonstration would require an additional authorized test-USDC debit and facilitator gas; it has not been performed by this correction.
+Full historical evidence is in [evidence/live-paid-run.json](evidence/live-paid-run.json). The bounded runner records the separately authorized fresh public-HTTP Route A demonstration without altering those historical transport labels.
+
+<!-- FRESH_HTTP_EVIDENCE_START -->
+### Fresh public HTTP Route A proof
+
+Pending one authorized bounded run. The runner refuses more than `0.001 USDC`, more than one settlement, or an estimated/actual additional gas cost above `0.0003 PHRS`.
+<!-- FRESH_HTTP_EVIDENCE_END -->
 
 ## Facilitator, limits, and durability
 
-The Worker exposes `GET /supported`, `POST /verify`, and owner-authenticated `POST /settle`. It strictly allowlists origin, routes, network, scheme, asset, merchant, and exact amount. The official SDK verifies and settles EIP-3009 authorization. `simulateInSettle`, a `160,000`-gas per-settlement ceiling, a durable total-gas guard, and an explicit `0.0139 PHRS` total spend ceiling run before broadcast.
+The Worker exposes `GET /supported`, `POST /verify`, and owner-authenticated `POST /settle`. It strictly allowlists origin, routes, network, scheme, asset, merchant, and exact amount. The official SDK verifies and settles EIP-3009 authorization. `simulateInSettle`, a `160,000`-gas per-settlement ceiling, a durable total-gas guard, the explicit `0.0139 PHRS` total spend ceiling, and the independently authorized `0.0003 PHRS` per-new-settlement ceiling run before broadcast. Buyer USDC and facilitator PHRS balances, the gas estimate, gas price, facilitator verification result, and chain block/time are durably stored before settlement submission.
 
 `BuyerCoordinator` and `SellerCoordinator` serialize async operations. D1 adds conditional budget reservations, unique authorization identities, durable settlement claims, and idempotent accounting across restarts. Concurrent duplicates share one authorization and one facilitator submission. Retries use delays `0/250/750 ms`; an ambiguous result keeps its reservation and reconciles `authorizationState` plus `AuthorizationUsed` logs without creating a replacement authorization. Expiry uses chain block time and authoritative authorization state.
 
@@ -110,7 +116,7 @@ powershell.exe -ExecutionPolicy Bypass -File .\scripts\deploy-cloudflare.ps1
 
 ## Tests and acceptance
 
-`npm test` covers exact HTTP challenges, free access, invalid/underpaid rejection, decimal arithmetic, budget boundaries, concurrent duplicates, global reservation races, one debit after lost response, durable facilitator claims, stale-snapshot recovery, restart reconciliation, chain-time authorization retirement, production public-fetch transport, and zero-debit HTTP recovery replay. Deterministic tests are clearly separate from the two real receipts above.
+`npm test` covers exact HTTP challenges, free access, invalid/underpaid rejection, decimal arithmetic, budget boundaries, concurrent duplicates, global reservation races, one debit after lost response, durable facilitator claims and preflight persistence, stale-snapshot recovery, restart reconciliation, chain-time authorization retirement, production public-fetch transport, zero-debit HTTP recovery replay, and rejection before broadcast when the `0.0003 PHRS` estimate ceiling is exceeded. Deterministic tests are clearly separate from real chain evidence.
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |

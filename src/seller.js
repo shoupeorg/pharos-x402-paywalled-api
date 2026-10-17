@@ -4,7 +4,7 @@ import {
   encodePaymentResponseHeader,
 } from "@x402/core/http";
 import { getAddress, parseSignature } from "viem";
-import { MAX_GAS_PER_SETTLEMENT, MAX_GAS_SPEND_WEI, MAX_GAS_TOTAL, NETWORK } from "./constants.js";
+import { MAX_ADDITIONAL_GAS_SPEND_WEI, MAX_GAS_PER_SETTLEMENT, MAX_GAS_SPEND_WEI, MAX_GAS_TOTAL, NETWORK } from "./constants.js";
 import { publicClient, readPaidResource, tokenAbi, verifySettlementReceipt } from "./chain.js";
 import { authorizationId, buildPaymentRequired } from "./protocol.js";
 import { SerialExecutor } from "./serial.js";
@@ -13,6 +13,7 @@ import { httpFacilitator } from "./facilitator-http.js";
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" };
 const responseJson = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { ...jsonHeaders, ...headers } });
 const timestamp = () => new Date().toISOString();
+const parsedPreflight = (row) => row?.preflight_json ? JSON.parse(row.preflight_json) : null;
 
 async function sha256(value) {
   const bytes = new TextEncoder().encode(value);
@@ -94,7 +95,7 @@ export class SellerCoordinator {
     }
     if (row.state === "PAYMENT_PENDING") return { found: false, pending: true, authId };
     if (row.state !== "SETTLED") throw new Error(`Stored payment has unsupported recovery state ${row.state}`);
-    return { found: true, recovered: true, settlement: JSON.parse(row.settlement_json), receipt: JSON.parse(row.receipt_json || "null"), data: JSON.parse(row.response_json), authId };
+    return { found: true, recovered: true, settlement: JSON.parse(row.settlement_json), receipt: JSON.parse(row.receipt_json || "null"), data: JSON.parse(row.response_json), preflight: parsedPreflight(row), authId };
   }
 
   async process({ endpoint, snapshotBlock, resourceUrl, paymentPayload, requirements, reconciliationOnly = false }) {
@@ -105,7 +106,7 @@ export class SellerCoordinator {
     const payloadHash = await sha256(payloadJson);
     let row = await env.DB.prepare("SELECT * FROM seller_receipts WHERE auth_id=?").bind(authId).first();
     if (row && row.payload_hash !== payloadHash) throw new Error("Authorization identity collision with different payload");
-    if (row?.state === "SETTLED") return { recovered: true, settlement: JSON.parse(row.settlement_json), receipt: JSON.parse(row.receipt_json || "null"), data: JSON.parse(row.response_json), authId };
+    if (row?.state === "SETTLED") return { recovered: true, settlement: JSON.parse(row.settlement_json), receipt: JSON.parse(row.receipt_json || "null"), data: JSON.parse(row.response_json), preflight: parsedPreflight(row), authId };
 
     const client = this.dependencies.publicClient();
     if (!row) {
@@ -122,11 +123,12 @@ export class SellerCoordinator {
     await env.DB.prepare("UPDATE seller_receipts SET claim_token=?, claim_expires_at=?, attempt_count=attempt_count+1, updated_at=? WHERE auth_id=? AND state='PAYMENT_PENDING' AND (claim_token IS NULL OR claim_expires_at<?)")
       .bind(claimToken, claimNow + 30, timestamp(), authId, claimNow).run();
     row = await env.DB.prepare("SELECT * FROM seller_receipts WHERE auth_id=?").bind(authId).first();
-    if (row.state === "SETTLED") return { recovered: true, settlement: JSON.parse(row.settlement_json), receipt: JSON.parse(row.receipt_json || "null"), data: JSON.parse(row.response_json), authId };
+    if (row.state === "SETTLED") return { recovered: true, settlement: JSON.parse(row.settlement_json), receipt: JSON.parse(row.receipt_json || "null"), data: JSON.parse(row.response_json), preflight: parsedPreflight(row), authId };
     if (row.claim_token !== claimToken) throw new Error("Settlement is already being reconciled; retry the same authorization");
 
     let transaction = await recoverUsedAuthorization(row, env, client);
     let settlement;
+    let preflight = parsedPreflight(row);
     if (transaction) {
       settlement = { success: true, transaction, network: NETWORK, payer: auth.from };
     } else {
@@ -143,13 +145,48 @@ export class SellerCoordinator {
       const actualGas = spentRows.reduce((sum, item) => sum + BigInt(JSON.parse(item.receipt_json || "{}").gasUsed || 0), 0n);
       const actualGasSpendWei = spentRows.reduce((sum, item) => sum + BigInt(JSON.parse(item.receipt_json || "{}").gasCostWei || 0), 0n);
       const estimate = await estimatedSettlementGas(paymentPayload, env, client);
-      const gasPrice = await client.getGasPrice();
+      const feeEstimate = client.estimateFeesPerGas
+        ? await client.estimateFeesPerGas()
+        : { maxFeePerGas: await client.getGasPrice(), maxPriorityFeePerGas: null };
+      const gasPrice = feeEstimate.maxFeePerGas ?? feeEstimate.gasPrice;
+      if (gasPrice == null) throw new Error("Chain fee estimate did not provide a usable per-gas ceiling");
+      const estimatedCostWei = estimate * gasPrice;
       if (estimate > MAX_GAS_PER_SETTLEMENT) throw new Error(`Settlement gas estimate ${estimate} exceeds per-transaction ceiling ${MAX_GAS_PER_SETTLEMENT}`);
+      if (estimatedCostWei > MAX_ADDITIONAL_GAS_SPEND_WEI) throw new Error(`Estimated settlement gas cost ${estimatedCostWei} wei exceeds authorized additional ceiling ${MAX_ADDITIONAL_GAS_SPEND_WEI} wei`);
       if (actualGas + estimate > MAX_GAS_TOTAL) throw new Error("Server-side global settlement gas ceiling reached");
-      if (actualGasSpendWei + estimate * gasPrice > MAX_GAS_SPEND_WEI) throw new Error("User-approved 0.0139 PHRS settlement gas ceiling reached");
+      if (actualGasSpendWei + estimatedCostWei > MAX_GAS_SPEND_WEI) throw new Error("User-approved 0.0139 PHRS settlement gas ceiling reached");
+      const [buyerTokenBalance, merchantTokenBalance, facilitatorNativeBalance] = await Promise.all([
+        client.readContract({ address: env.PAYMENT_TOKEN, abi: tokenAbi, functionName: "balanceOf", args: [auth.from], blockNumber: chainHead.number }),
+        client.readContract({ address: env.PAYMENT_TOKEN, abi: tokenAbi, functionName: "balanceOf", args: [auth.to], blockNumber: chainHead.number }),
+        client.getBalance({ address: env.FACILITATOR_ADDRESS, blockNumber: chainHead.number }),
+      ]);
+      if (buyerTokenBalance < BigInt(auth.value)) throw new Error("Buyer token balance is below the authorized debit");
+      if (facilitatorNativeBalance < estimatedCostWei) throw new Error("Facilitator PHRS balance is below the estimated settlement gas cost");
       const facilitator = this.dependencies.facilitator;
       const verified = await facilitator.verify(paymentPayload, requirements);
       if (!verified.isValid) throw new Error(`Facilitator verification rejected payment: ${verified.invalidReason || "unknown reason"}`);
+      preflight = {
+        checkedAt: timestamp(),
+        blockNumber: chainHead.number.toString(),
+        chainTimestamp: chainHead.timestamp.toString(),
+        buyerTokenBalanceAtomic: buyerTokenBalance.toString(),
+        merchantTokenBalanceAtomic: merchantTokenBalance.toString(),
+        facilitatorNativeBalanceWei: facilitatorNativeBalance.toString(),
+        debitAtomic: auth.value,
+        gasEstimate: estimate.toString(),
+        feeModel: feeEstimate.maxFeePerGas != null ? "EIP1559_MAX_FEE" : "LEGACY_GAS_PRICE",
+        feeCeilingPerGasWei: gasPrice.toString(),
+        maxPriorityFeePerGasWei: feeEstimate.maxPriorityFeePerGas?.toString() ?? null,
+        estimatedGasCostWei: estimatedCostWei.toString(),
+        authorizedAdditionalGasCeilingWei: MAX_ADDITIONAL_GAS_SPEND_WEI.toString(),
+        totalGasCeilingWei: MAX_GAS_SPEND_WEI.toString(),
+        verification: { isValid: true },
+        persistedBeforeBroadcast: true,
+      };
+      await env.DB.prepare("UPDATE seller_receipts SET preflight_json=?,updated_at=? WHERE auth_id=? AND state='PAYMENT_PENDING' AND claim_token=?")
+        .bind(JSON.stringify(preflight), timestamp(), authId, claimToken).run();
+      const durablePreflight = await env.DB.prepare("SELECT preflight_json FROM seller_receipts WHERE auth_id=? AND state='PAYMENT_PENDING' AND claim_token=?").bind(authId, claimToken).first();
+      if (!durablePreflight?.preflight_json) throw new Error("Settlement preflight was not durably recorded before broadcast");
       settlement = await facilitator.settle(paymentPayload, requirements);
       if (!settlement.success || !settlement.transaction) throw new Error(`Facilitator settlement failed: ${settlement.errorReason || "unknown reason"}`);
       transaction = settlement.transaction;
@@ -163,7 +200,7 @@ export class SellerCoordinator {
       .bind(transaction, JSON.stringify(settlement), JSON.stringify(receipt), JSON.stringify(data), timestamp(), authId, claimToken).run();
     const final = await env.DB.prepare("SELECT state,settlement_hash FROM seller_receipts WHERE auth_id=?").bind(authId).first();
     if (final?.state !== "SETTLED" || final.settlement_hash !== transaction) throw new Error("Settlement result was not durably recorded by its claim owner");
-    return { recovered: false, settlement, receipt, data, authId };
+    return { recovered: false, settlement, receipt, data, preflight, authId };
   }
 }
 
@@ -203,13 +240,13 @@ export async function handlePaidRequest(request, env) {
   const recovery = await stub.fetch("https://seller.internal/recover", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "recover", ...input }) });
   const recovered = await recovery.json();
   if (!recovery.ok) return responseJson({ error: recovered.error, state: "PENDING_RECONCILIATION", authId }, 502);
-  if (recovered.found) return responseJson({ ...recovered.data, payment: { authId, recovered: true } }, 200, { "PAYMENT-RESPONSE": encodePaymentResponseHeader(recovered.settlement) });
+  if (recovered.found) return responseJson({ ...recovered.data, payment: { authId, recovered: true, preflight: recovered.preflight } }, 200, { "PAYMENT-RESPONSE": encodePaymentResponseHeader(recovered.settlement) });
 
   if (recovered.pending) {
     const reconciledResponse = await stub.fetch("https://seller.internal/reconcile", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...input, reconciliationOnly: true }) });
     const reconciled = await reconciledResponse.json();
     if (!reconciledResponse.ok) return responseJson({ error: reconciled.error, state: "PENDING_RECONCILIATION", authId }, 502);
-    return responseJson({ ...reconciled.data, payment: { authId, recovered: true } }, 200, { "PAYMENT-RESPONSE": encodePaymentResponseHeader(reconciled.settlement) });
+    return responseJson({ ...reconciled.data, payment: { authId, recovered: true, preflight: reconciled.preflight } }, 200, { "PAYMENT-RESPONSE": encodePaymentResponseHeader(reconciled.settlement) });
   }
 
   const latest = await (env.__TEST_DEPENDENCIES?.seller?.publicClient || publicClient)().getBlockNumber();
@@ -217,5 +254,5 @@ export async function handlePaidRequest(request, env) {
   const processed = await stub.fetch("https://seller.internal/settle", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
   const result = await processed.json();
   if (!processed.ok) return responseJson({ error: result.error, state: "PENDING_RECONCILIATION", authId }, 502);
-  return responseJson({ ...result.data, payment: { authId, recovered: result.recovered } }, 200, { "PAYMENT-RESPONSE": encodePaymentResponseHeader(result.settlement) });
+  return responseJson({ ...result.data, payment: { authId, recovered: result.recovered, preflight: result.preflight } }, 200, { "PAYMENT-RESPONSE": encodePaymentResponseHeader(result.settlement) });
 }

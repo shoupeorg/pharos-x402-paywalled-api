@@ -187,7 +187,7 @@ test("settled response is recoverable after its snapshot is more than 1,000 bloc
   env.SELLER = { idFromName: (name) => name, get: () => ({ fetch: (target, init) => coordinator.fetch(new Request(target, init)) }) };
   const response = await handlePaidRequest(new Request(url, { headers: { "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload) } }), env);
   assert.equal(response.status, 200);
-  assert.deepEqual((await response.json()).payment, { authId: authorizationId(payload), recovered: true });
+  assert.deepEqual((await response.json()).payment, { authId: authorizationId(payload), recovered: true, preflight: null });
 });
 
 test("pending on-chain settlement reconciles after 1,000 blocks without a new debit or authorization", async (t) => {
@@ -210,10 +210,11 @@ test("pending on-chain settlement reconciles after 1,000 blocks without a new de
   const client = {
     getBlockNumber: async () => latestBlock,
     getBlock: async () => ({ number: latestBlock, timestamp: 100n }),
-    readContract: async () => authorizationUsed,
+    readContract: async ({ functionName }) => functionName === "balanceOf" ? 1000000n : authorizationUsed,
     getLogs: async () => authorizationUsed ? [{ transactionHash: transaction }] : [],
     estimateContractGas: async () => 100n,
     getGasPrice: async () => 10n,
+    getBalance: async () => 1000000n,
   };
   const dependencies = {
     seller: {
@@ -283,15 +284,22 @@ test("durable seller claim permits only one facilitator submission across coordi
   const client = {
     getBlockNumber: async () => 500n,
     getBlock: async () => ({ number: 500n, timestamp: 100n }),
-    readContract: async () => false,
+    readContract: async ({ functionName }) => functionName === "balanceOf" ? 1000000n : false,
     estimateContractGas: async () => 100n,
     getGasPrice: async () => 10n,
+    getBalance: async () => 1000000n,
   };
   env.__TEST_DEPENDENCIES = { seller: {
     publicClient: () => client,
     facilitator: {
       verify: async () => ({ isValid: true }),
-      settle: async () => { submissions += 1; await new Promise((resolve) => setTimeout(resolve, 5)); return { success: true, transaction: hash(888), network: NETWORK, payer: env.BUYER_ADDRESS }; },
+      settle: async () => {
+        const durable = await db.prepare("SELECT preflight_json FROM seller_receipts WHERE auth_id=?").bind(authorizationId(payload)).first();
+        assert.equal(JSON.parse(durable.preflight_json).persistedBeforeBroadcast, true);
+        submissions += 1;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return { success: true, transaction: hash(888), network: NETWORK, payer: env.BUYER_ADDRESS };
+      },
     },
     verifySettlementReceipt: async () => ({ status: "success", gasUsed: "100" }),
     readPaidResource: async () => ({ endpoint: "/paid/network-snapshot", blockNumber: "500", baseFeePerGasWei: "1" }),
@@ -309,6 +317,38 @@ test("durable seller claim permits only one facilitator submission across coordi
   assert.equal(recovered.status, 200);
   assert.equal((await recovered.json()).recovered, true);
   assert.equal(submissions, 1);
+});
+
+test("fresh settlement stops before broadcast when estimated gas exceeds the authorized additional ceiling", async (t) => {
+  const db = createDatabase(); t.after(() => db.close());
+  let submissions = 0;
+  const env = { DB: db, PUBLIC_ORIGIN: "https://seller.test", ...ADDRESSES };
+  const url = "https://seller.test/paid/network-snapshot?block=500";
+  const requirements = buildPaymentRequired({ origin: env.PUBLIC_ORIGIN, path: "/paid/network-snapshot", snapshotBlock: "500", env }).accepts[0];
+  const payload = {
+    x402Version: 2,
+    resource: { url },
+    accepted: requirements,
+    payload: { authorization: { from: env.BUYER_ADDRESS, to: env.MERCHANT_ADDRESS, value: "1000", validAfter: "0", validBefore: "9999", nonce: hash(889) }, signature: `0x${"34".repeat(64)}1b` },
+  };
+  const client = {
+    getBlockNumber: async () => 500n,
+    getBlock: async () => ({ number: 500n, timestamp: 100n }),
+    readContract: async ({ functionName }) => functionName === "balanceOf" ? 1000000n : false,
+    estimateContractGas: async () => 100n,
+    getGasPrice: async () => 4000000000000n,
+    getBalance: async () => 1000000000000000n,
+  };
+  env.__TEST_DEPENDENCIES = { seller: {
+    publicClient: () => client,
+    facilitator: { verify: async () => ({ isValid: true }), settle: async () => { submissions += 1; throw new Error("must not broadcast"); } },
+  } };
+  const input = { endpoint: "/paid/network-snapshot", snapshotBlock: "500", resourceUrl: url, paymentPayload: payload, requirements };
+  const response = await new SellerCoordinator({}, env).fetch(new Request("https://seller.internal/settle", { method: "POST", body: JSON.stringify(input) }));
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /exceeds authorized additional ceiling/);
+  assert.equal(submissions, 0);
+  assert.equal((await db.prepare("SELECT preflight_json FROM seller_receipts WHERE auth_id=?").bind(authorizationId(payload)).first()).preflight_json, null);
 });
 
 test("restart reconciliation reuses persisted authorization and chain time/state control retirement", async (t) => {

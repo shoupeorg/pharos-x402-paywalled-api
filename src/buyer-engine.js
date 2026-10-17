@@ -100,6 +100,20 @@ export class BuyerEngine {
       if (!header) throw new Error("402 response lacked PAYMENT-REQUIRED header");
       const required = decodePaymentRequiredHeader(header);
       const accepted = validatePaymentRequired(required, { expectedUrl: url, expectedAmount: endpoint.priceAtomic, env: this.env });
+      await new EvidenceStore(this.env.DB).save({
+        id: `challenge:${intentId}`,
+        kind: endpoint.path === "/paid/network-snapshot" ? "FRESH_HTTP_402_ROUTE_A" : "FRESH_HTTP_402_ROUTE_B",
+        label: `${endpoint.label} — public HTTP unpaid challenge`,
+        route: endpoint.path,
+        request: { method: "GET", transport: "PUBLIC_WORKER_HTTP", url, paymentSignaturePresent: false, runId },
+        responseStatus: 402,
+        responseHeaders: { paymentRequired: { present: true, rawPublished: false }, paymentResponse: null },
+        responseBody: { x402Version: required.x402Version, resource: required.resource, accepts: required.accepts },
+        decodedRequirements: { scheme: accepted.scheme, network: accepted.network, asset: accepted.asset, payTo: accepted.payTo, amount: accepted.amount },
+        settlementHash: null,
+        debitAtomic: "0",
+        createdAt: new Date().toISOString(),
+      });
       const reason = `${endpoint.label} is necessary to produce the two-source network brief`;
       await this.store.quoteIntent({ id: intentId, taskId: runId, endpoint: endpoint.path, amountAtomic: accepted.amount, reason });
       const task = await this.store.getTask(runId);
@@ -136,12 +150,12 @@ export class BuyerEngine {
         await this.store.settle({ taskId: runId, intentId, amountAtomic: endpoint.priceAtomic, settlementHash: settlement.transaction, receipt, response: data });
         await new EvidenceStore(this.env.DB).save({
           id: `paid:${intentId}`,
-          kind: endpoint.path === "/paid/network-snapshot" ? "PAID_ROUTE_A" : "PAID_ROUTE_B",
-          label: `${endpoint.label} — real EIP-3009 settlement`,
+          kind: endpoint.path === "/paid/network-snapshot" ? "FRESH_PUBLIC_HTTP_ROUTE_A" : "FRESH_PUBLIC_HTTP_ROUTE_B",
+          label: `${endpoint.label} — fresh public HTTP EIP-3009 settlement`,
           route: endpoint.path,
           request: { method: "GET", transport: "PUBLIC_WORKER_HTTP", url, paymentSignaturePresent: true, signaturePublished: false, runId },
           responseStatus: 200,
-          responseHeaders: { paymentRequired: null, paymentResponse: "present (not published)" },
+          responseHeaders: { paymentRequired: null, paymentResponse: { present: true, rawPublished: false, decoded: { success: settlement.success, transaction: settlement.transaction, network: settlement.network } } },
           responseBody: data,
           decodedRequirements: { scheme: "exact", network: NETWORK, asset: this.env.PAYMENT_TOKEN, payTo: this.env.MERCHANT_ADDRESS, amount: endpoint.priceAtomic },
           settlementHash: settlement.transaction,
