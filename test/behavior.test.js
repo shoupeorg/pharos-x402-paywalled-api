@@ -77,14 +77,52 @@ function harness({ ambiguousFirstResource = false, chainTimestamp = 100n, author
   };
   const buyer = {
     publicClient: () => client,
-    handlePaidRequest: paidHandler,
+    fetch: (input, init) => paidHandler(new Request(input, init)),
     makeBuyerClient,
     verifySettlementReceipt: async ({ txHash }) => ({ status: "success", transactionHash: txHash, gasUsed: "1" }),
     sleep: async () => {},
   };
   env.__TEST_DEPENDENCIES = { buyer };
-  return { db, env, buyer, client, settlements, payloads, useResponsiveHandler() { buyer.handlePaidRequest = async (request) => paidHandler(request); } };
+  return { db, env, buyer, client, settlements, payloads, useResponsiveHandler() { buyer.fetch = (input, init) => paidHandler(new Request(input, init)); } };
 }
+
+test("production buyer transport performs public HTTP fetch for challenge and signed payment", async (t) => {
+  const h = harness(); t.after(() => h.db.close());
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init);
+    calls.push({ url: request.url, signed: request.headers.has("PAYMENT-SIGNATURE") });
+    return h.buyer.fetch(input, init);
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  const { fetch: _injectedFetch, ...productionDependencies } = h.buyer;
+  void _injectedFetch;
+  const result = await new BuyerEngine(h.env, productionDependencies).run({ runId: "production-http", kind: "SUCCESS" });
+  assert.equal(result.task.status, "COMPLETED");
+  assert.ok(calls.some((call) => call.url.startsWith(`${h.env.PUBLIC_ORIGIN}/paid/`) && !call.signed), "unpaid challenge used public HTTP fetch");
+  assert.ok(calls.some((call) => call.url.startsWith(`${h.env.PUBLIC_ORIGIN}/paid/`) && call.signed), "signed payment used public HTTP fetch");
+});
+
+test("public HTTP recovery replay reuses a settled authorization without another debit", async (t) => {
+  const h = harness(); t.after(() => h.db.close());
+  const engine = new BuyerEngine(h.env, h.buyer);
+  const completed = await engine.run({ runId: "http-recovery", kind: "SUCCESS" });
+  const beforeSettlements = h.settlements.size;
+  const beforeConfirmed = completed.task.confirmed_atomic;
+  const record = await engine.replaySettledHttp({ runId: "http-recovery", endpointPath: "/paid/network-snapshot" });
+  assert.equal(record.responseStatus, 200);
+  assert.equal(record.request.transport, "PUBLIC_WORKER_HTTP_RECOVERY");
+  assert.equal(record.request.signaturePublished, false);
+  assert.equal(record.responseHeaders.paymentResponse.rawPublished, false);
+  assert.equal(record.responseHeaders.paymentResponse.decoded.network, NETWORK);
+  assert.equal(record.debitAtomic, "0");
+  const after = await new BuyerStore(h.db).snapshot("http-recovery");
+  assert.equal(after.task.confirmed_atomic, beforeConfirmed);
+  assert.equal(h.settlements.size, beforeSettlements);
+  assert.equal(after.events.filter((event) => event.type === "PUBLIC_HTTP_RECOVERY").length, 1);
+  assert.equal((await h.db.prepare("SELECT COUNT(*) AS count FROM budget_reservations WHERE state='CONFIRMED'").first()).count, 2);
+});
 
 test("concurrent duplicate coordinator requests serialize and account each authorization once", async (t) => {
   const h = harness(); t.after(() => h.db.close());
@@ -192,7 +230,7 @@ test("pending on-chain settlement reconciles after 1,000 blocks without a new de
     },
     buyer: {
       publicClient: () => client,
-      handlePaidRequest,
+      fetch: (input, init) => handlePaidRequest(new Request(input, init), env),
       makeBuyerClient: () => ({ createPaymentPayload: async () => { payloadCreations += 1; return payload; } }),
       verifySettlementReceipt: async () => ({ status: "success", transactionHash: transaction, gasUsed: "100" }),
       sleep: async () => {},
@@ -279,7 +317,8 @@ test("restart reconciliation reuses persisted authorization and chain time/state
   assert.equal(first.task.status, "PENDING_RECONCILIATION");
   const originalAuth = first.intents[0].auth_id;
   assert.equal(h.payloads.length, 1);
-  h.buyer.handlePaidRequest = async (request) => {
+  h.buyer.fetch = async (input, init) => {
+    const request = new Request(input, init);
     const originalFlag = false;
     void originalFlag;
     const url = new URL(request.url);

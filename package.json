@@ -12,6 +12,7 @@
     "db:migrate:local": "wrangler d1 migrations apply pharos-x402-paywalled-api --local",
     "db:migrate:remote": "wrangler d1 migrations apply pharos-x402-paywalled-api --remote",
     "probe:foundation": "node scripts/probe-foundation.mjs",
+    "evidence:http-recovery": "node scripts/run-http-recovery-demo.mjs",
     "cli": "node src/cli.js",
     "skill": "node scripts/invoke-skill.mjs"
   },

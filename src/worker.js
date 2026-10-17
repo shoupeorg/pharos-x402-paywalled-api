@@ -57,7 +57,9 @@ export class BuyerCoordinator {
   async handle(request) {
     try {
       const input = await request.json();
-      return Response.json(await new BuyerEngine(this.env, this.env.__TEST_DEPENDENCIES?.buyer).run({ runId: runId(input.runId), kind: input.kind, config: input.config }));
+      const engine = new BuyerEngine(this.env, this.env.__TEST_DEPENDENCIES?.buyer);
+      if (input.action === "replay-settled-http") return Response.json(await engine.replaySettledHttp({ runId: runId(input.runId), endpointPath: input.endpoint }));
+      return Response.json(await engine.run({ runId: runId(input.runId), kind: input.kind, config: input.config }));
     } catch (error) { return Response.json({ error: error.message || "Buyer run failed" }, { status: 400 }); }
   }
 }
@@ -128,6 +130,13 @@ app.post("/api/run/:kind", async (c) => {
   };
   const stub = c.env.BUYER.get(c.env.BUYER.idFromName("buyer-global"));
   return stub.fetch("https://buyer.internal/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ runId: id, kind, config }) });
+});
+
+app.post("/api/replay-settled-http", async (c) => {
+  const denied = requireOwner(c); if (denied) return denied;
+  const input = await c.req.json().catch(() => ({}));
+  const stub = c.env.BUYER.get(c.env.BUYER.idFromName("buyer-global"));
+  return stub.fetch("https://buyer.internal/replay", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "replay-settled-http", runId: input.runId, endpoint: input.endpoint }) });
 });
 
 app.get("/paid/network-snapshot", (c) => handlePaidRequest(c.req.raw, c.env));

@@ -32,7 +32,7 @@ The supplied funding receipt [0x5de280…b65d](https://atlantic.pharosscan.xyz/t
 
 The two paid responses use the same pinned Atlantic block. Route A returns the block base fee plus buyer/merchant balances; route B summarizes that block and the preceding two blocks. Data is released only after a successful receipt containing the exact expected token `Transfer`, or authenticated recovery of the same already-settled authorization.
 
-## Real paid HTTP evidence
+## Real settlement evidence and transport disclosure
 
 Run `live-paid-20261018` completed on 2026-10-17 UTC at pinned block `31549799`:
 
@@ -43,7 +43,15 @@ Run `live-paid-20261018` completed on 2026-10-17 UTC at pinned block `31549799`:
 
 Total debit was exactly `0.003 USDC`; total facilitator gas was `0.000188536 PHRS`, below the user-approved `0.0139 PHRS` ceiling. Post-run balances at block `31549868` were buyer `1.997 USDC`, merchant `0.003 USDC`, and facilitator `0.099811464 PHRS`.
 
-Each live route followed: unpaid HTTP 402 with `PAYMENT-REQUIRED` → SDK-signed EIP-3009 authorization → own `/verify` and `/settle` facilitator HTTP calls → successful chain receipt and exact `Transfer` → paid HTTP 200 with `PAYMENT-RESPONSE`. The activity route deliberately discarded its first paid response after real settlement; retry used the same authorization and recovered the stored response on attempt two without a second debit. Full evidence is in [evidence/live-paid-run.json](evidence/live-paid-run.json) and deployed `/api/tasks/live-paid-20261018` plus `/api/http-evidence`.
+The two receipts, token transfers, paid response bodies, and D1 accounting are real. However, the original buyer obtained the unpaid challenge and submitted the signed paid request by invoking the Worker seller handler in-process. It did **not** fetch the public paid URL. Consequently, this historical run proves settlement and recovery correctness, but is not evidence of a complete external HTTP buyer flow. The activity route deliberately discarded its first in-process paid response after real settlement; retry reused the same authorization and recovered the stored response without a second debit.
+
+The production buyer has since been corrected to use `fetch(PUBLIC_ORIGIN + paidRoute)` for both the unpaid challenge and signed request. Dependency injection remains available only for deterministic tests. Migration `0005_transport_evidence_correction.sql` relabels the original D1 rows as `IN_PROCESS_WORKER_CALL` without changing receipts, hashes, accounting, or timestamps.
+
+`POST /api/replay-settled-http` provides an owner-authenticated, no-spend proof of the corrected transport. It sends the original stored authorization to the public paid URL. The seller authenticates the original payment/resource binding and returns the stored response with HTTP 200 and `PAYMENT-RESPONSE`; no settlement or debit is created. This is explicitly labeled `PUBLIC_WORKER_HTTP_RECOVERY`, not a fresh initial payment flow. Safe evidence stores only the decoded transaction hash/network/success flag and never publishes the reusable payment signature.
+
+The deployed replay command writes [evidence/http-recovery-replay.json](evidence/http-recovery-replay.json) and persists the same safe records in `/api/http-evidence`.
+
+Full historical evidence is in [evidence/live-paid-run.json](evidence/live-paid-run.json). A fresh full `402 → signed public HTTP request → new settlement → 200` demonstration would require an additional authorized test-USDC debit and facilitator gas; it has not been performed by this correction.
 
 ## Facilitator, limits, and durability
 
@@ -102,15 +110,15 @@ powershell.exe -ExecutionPolicy Bypass -File .\scripts\deploy-cloudflare.ps1
 
 ## Tests and acceptance
 
-`npm test` passes 28 tests covering exact HTTP challenges, free access, invalid/underpaid rejection, decimal arithmetic, budget boundaries, concurrent duplicates, global reservation races, one debit after lost response, durable facilitator claims, stale-snapshot recovery, restart reconciliation, and chain-time authorization retirement. Deterministic tests are clearly separate from the two real receipts above.
+`npm test` covers exact HTTP challenges, free access, invalid/underpaid rejection, decimal arithmetic, budget boundaries, concurrent duplicates, global reservation races, one debit after lost response, durable facilitator claims, stale-snapshot recovery, restart reconciliation, chain-time authorization retirement, production public-fetch transport, and zero-debit HTTP recovery replay. Deterministic tests are clearly separate from the two real receipts above.
 
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| Atlantic test USDC and exact prices | PASS | Official registry, live proxy reads, 6 decimals, exact `0.001` and `0.002 USDC` debits |
-| Free + two paid HTTP routes | PASS | `/health`; two deployed 402 → signed payment → 200 flows |
-| Own operational facilitator | PASS | `/supported`, `/verify`, `/settle`, strict allowlist, receipt verification |
-| Durable accounting and recovery | PASS | D1 run/event log; lost-response recovery with one debit and one spend entry |
-| Invalid and underpaid rejection | PASS | Fresh official-token deployed evidence above; HTTP 402, zero debit |
-| Secret isolation and spending limits | PASS | Boolean signer checks, no published signatures/keys, `0.0139 PHRS` enforced ceiling |
+| Atlantic test USDC and exact prices | PASS | Official registry, live proxy reads, 6 decimals, real exact `0.001` and `0.002 USDC` debits |
+| Free + two distinct paid resources | PASS | `/health`, `/paid/network-snapshot`, and `/paid/activity-summary` with distinct prices |
+| Own operational facilitator | PASS | `/supported`, `/verify`, `/settle`, strict allowlist, and two successful real receipts |
+| Complete deployed external HTTP payment lifecycle | PARTIAL | Production buyer now uses public HTTP and deployed recovery can prove HTTP 200 + `PAYMENT-RESPONSE` without spending. The original initial flows used in-process seller calls, so a fresh initial public-HTTP settlement remains unproved. |
+| Durable accounting, replay protection, and rejection | PASS | D1 guards, restart/lost-response recovery, invalid and signed-underpayment HTTP 402 with zero debit |
+| Secret isolation and spending limits | PASS | Boolean signer checks, no published signatures/keys, and enforced `0.0139 PHRS` ceiling |
 
 No custom token, Permit2 proxy, replacement signer, or contract deployment was used. This is testnet software, not production payment infrastructure.

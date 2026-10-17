@@ -52,7 +52,10 @@ Spending actions remain owner-authenticated. Do not expose keys, reusable signat
 - `MISSING_PAYMENT`: real HTTP 402 challenge.
 - `INVALID_PAYMENT`: malformed header rejected, zero spend.
 - `UNDERPAYMENT`: SDK-signed lower amount rejected before settlement, zero spend.
-- `PAID_ROUTE_A` / `PAID_ROUTE_B`: real HTTP 200 paid responses with successful receipts and exact token transfers.
-- `live-paid-20261018`: the authoritative two-route real demonstration, totaling `0.003 USDC`.
+- `PAID_ROUTE_A` / `PAID_ROUTE_B`: real successful receipts and exact token transfers; their original buyer-to-seller transport was an in-process Worker call, not public HTTP.
+- `HTTP_RECOVERY_ROUTE_A` / `HTTP_RECOVERY_ROUTE_B`: real public HTTP 200 recovery of those already-settled authorizations, with decoded `PAYMENT-RESPONSE`, zero new debit, and no new settlement.
+- `live-paid-20261018`: the authoritative two-route settlement demonstration totaling `0.003 USDC`; do not describe it as proof of a fresh external HTTP settlement flow.
+
+The production buyer now fetches both challenge and paid seller routes through `PUBLIC_ORIGIN`. A public HTTP recovery replay proves the corrected deployed transport without spending, but it is not a fresh initial payment. State this limitation whenever reporting task completion.
 
 Accept paid data only after a successful receipt and exact token `Transfer`. On ambiguity, retain durable pending state and reconcile the same authorization; never create a replacement payment blindly.

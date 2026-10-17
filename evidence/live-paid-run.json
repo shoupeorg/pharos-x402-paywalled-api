@@ -1,6 +1,7 @@
 {
   "recordedAt": "2026-10-17T21:00:33.081Z",
-  "kind": "REAL_ATLANTIC_EIP3009_PAID_HTTP",
+  "kind": "REAL_ATLANTIC_EIP3009_SETTLEMENTS_WITH_IN_PROCESS_BUYER_TRANSPORT",
+  "transportDisclosure": "The settlement receipts, transfers, paid responses, and accounting are real. The original buyer invoked the Worker seller handler in-process rather than fetching the public paid URL; this file is not proof of external HTTP transport.",
   "network": {
     "name": "Pharos Atlantic Testnet",
     "chainId": 688689,

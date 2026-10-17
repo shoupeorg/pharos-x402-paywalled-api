@@ -5,7 +5,6 @@ import { publicClient, tokenAbi, verifySettlementReceipt } from "./chain.js";
 import { authorizationId, makeBuyerClient, validatePaymentRequired } from "./protocol.js";
 import { budgetDecision } from "./money.js";
 import { BuyerStore } from "./store.js";
-import { handlePaidRequest } from "./seller.js";
 import { EvidenceStore } from "./evidence-store.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,7 +35,7 @@ export class BuyerEngine {
     this.store = new BuyerStore(env.DB);
     this.dependencies = {
       publicClient: dependencies.publicClient || publicClient,
-      handlePaidRequest: dependencies.handlePaidRequest || handlePaidRequest,
+      fetch: dependencies.fetch || ((input, init) => globalThis.fetch(input, init)),
       makeBuyerClient: dependencies.makeBuyerClient || makeBuyerClient,
       verifySettlementReceipt: dependencies.verifySettlementReceipt || verifySettlementReceipt,
       sleep: dependencies.sleep || sleep,
@@ -95,7 +94,7 @@ export class BuyerEngine {
       }
     }
     if (!paymentPayload) {
-      const quoteResponse = await this.dependencies.handlePaidRequest(new Request(url), this.env);
+      const quoteResponse = await this.dependencies.fetch(url, { method: "GET" });
       if (quoteResponse.status !== 402) throw new Error(`Expected HTTP 402 from ${endpoint.path}, received ${quoteResponse.status}`);
       const header = quoteResponse.headers.get("PAYMENT-REQUIRED");
       if (!header) throw new Error("402 response lacked PAYMENT-REQUIRED header");
@@ -112,7 +111,7 @@ export class BuyerEngine {
       await this.store.markPending({ taskId: runId, intentId, authId: authorizationId(paymentPayload), payload: paymentPayload });
     }
 
-    const request = () => new Request(url, { headers: { "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(paymentPayload) } });
+    const request = () => this.dependencies.fetch(url, { method: "GET", headers: { "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(paymentPayload) } });
     let injected = false;
     let lastError;
     for (let index = 0; index < RETRY_DELAYS_MS.length; index += 1) {
@@ -120,7 +119,7 @@ export class BuyerEngine {
       const delayMs = RETRY_DELAYS_MS[index];
       if (delayMs) await this.dependencies.sleep(delayMs);
       try {
-        const paid = await this.dependencies.handlePaidRequest(request(), this.env);
+        const paid = await request();
         if (!paid.ok) throw new Error(`Paid request failed with HTTP ${paid.status}: ${(await paid.json()).error || "unknown"}`);
         if (profile.injectLostResponseAt === endpoint.path && !injected) {
           injected = true;
@@ -140,7 +139,7 @@ export class BuyerEngine {
           kind: endpoint.path === "/paid/network-snapshot" ? "PAID_ROUTE_A" : "PAID_ROUTE_B",
           label: `${endpoint.label} — real EIP-3009 settlement`,
           route: endpoint.path,
-          request: { method: "GET", transport: "WORKER_HTTP", paymentSignaturePresent: true, signaturePublished: false, runId },
+          request: { method: "GET", transport: "PUBLIC_WORKER_HTTP", url, paymentSignaturePresent: true, signaturePublished: false, runId },
           responseStatus: 200,
           responseHeaders: { paymentRequired: null, paymentResponse: "present (not published)" },
           responseBody: data,
@@ -157,5 +156,44 @@ export class BuyerEngine {
       }
     }
     await this.store.fail({ taskId: runId, intentId, amountAtomic: endpoint.priceAtomic, state: "PENDING_RECONCILIATION", error: lastError?.message || "Payment result remained ambiguous", keepReservation: true });
+  }
+
+  async replaySettledHttp({ runId, endpointPath }) {
+    const endpoint = ENDPOINTS.find((item) => item.path === endpointPath);
+    if (!endpoint) throw new Error("Unknown paid endpoint");
+    const task = await this.store.getTask(runId);
+    if (!task || task.status !== "COMPLETED") throw new Error("Only a completed durable run can be replayed");
+    const intent = await this.env.DB.prepare("SELECT * FROM payment_intents WHERE task_id=? AND endpoint=?").bind(runId, endpoint.path).first();
+    if (!intent || intent.state !== "DATA_RECEIVED" || !intent.payment_payload_json || !intent.settlement_hash) throw new Error("Settled payment evidence is incomplete");
+    const payload = JSON.parse(intent.payment_payload_json);
+    const url = payload.resource?.url;
+    if (!url || new URL(url).origin !== this.env.PUBLIC_ORIGIN || new URL(url).pathname !== endpoint.path) throw new Error("Stored payment resource is not bound to this public seller");
+
+    const response = await this.dependencies.fetch(url, { method: "GET", headers: { "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload) } });
+    if (!response.ok) throw new Error(`HTTP recovery replay failed with ${response.status}`);
+    const paymentResponse = response.headers.get("PAYMENT-RESPONSE");
+    if (!paymentResponse) throw new Error("HTTP recovery replay lacked PAYMENT-RESPONSE");
+    const settlement = decodePaymentResponseHeader(paymentResponse);
+    if (!settlement.success || settlement.network !== NETWORK || settlement.transaction?.toLowerCase() !== intent.settlement_hash.toLowerCase()) throw new Error("HTTP recovery replay changed the stored settlement identity");
+    const data = await response.json();
+    if (!data.payment?.recovered) throw new Error("Seller did not label the response as recovered");
+    const receipt = await this.dependencies.verifySettlementReceipt({ txHash: settlement.transaction, token: this.env.PAYMENT_TOKEN, payer: this.env.BUYER_ADDRESS, merchant: this.env.MERCHANT_ADDRESS, amountAtomic: endpoint.priceAtomic });
+    const kind = endpoint.path === "/paid/network-snapshot" ? "HTTP_RECOVERY_ROUTE_A" : "HTTP_RECOVERY_ROUTE_B";
+    const record = await new EvidenceStore(this.env.DB).save({
+      id: `http-recovery:${intent.id}`,
+      kind,
+      label: `${endpoint.label} — public HTTP recovery of existing settlement`,
+      route: endpoint.path,
+      request: { method: "GET", transport: "PUBLIC_WORKER_HTTP_RECOVERY", url, paymentSignaturePresent: true, signaturePublished: false, runId, createsNewPayment: false },
+      responseStatus: response.status,
+      responseHeaders: { paymentRequired: null, paymentResponse: { present: true, rawPublished: false, decoded: { success: settlement.success, transaction: settlement.transaction, network: settlement.network } } },
+      responseBody: data,
+      decodedRequirements: { scheme: "exact", network: NETWORK, asset: this.env.PAYMENT_TOKEN, payTo: this.env.MERCHANT_ADDRESS, amount: endpoint.priceAtomic },
+      settlementHash: settlement.transaction,
+      debitAtomic: "0",
+      createdAt: new Date().toISOString(),
+    });
+    await this.store.recordEvent(runId, intent.id, "PUBLIC_HTTP_RECOVERY", { endpoint: endpoint.path, settlementHash: settlement.transaction, responseStatus: response.status, paymentResponseDecoded: { success: settlement.success, transaction: settlement.transaction, network: settlement.network }, noNewSettlement: true, noNewDebit: true, receiptStatus: receipt.status }, `public-http-recovery:${intent.id}`);
+    return record;
   }
 }

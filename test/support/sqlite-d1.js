@@ -33,7 +33,7 @@ export class SqliteD1 {
 
 export function createDatabase() {
   const db = new SqliteD1();
-  for (const migration of ["0001_initial.sql", "0002_durable_concurrency.sql", "0003_http_evidence.sql", "0004_browser_demo_preparations.sql"]) {
+  for (const migration of ["0001_initial.sql", "0002_durable_concurrency.sql", "0003_http_evidence.sql", "0004_browser_demo_preparations.sql", "0005_transport_evidence_correction.sql"]) {
     db.exec(fs.readFileSync(new URL(`../../migrations/${migration}`, import.meta.url), "utf8"));
   }
   return db;
