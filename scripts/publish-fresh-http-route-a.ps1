@@ -21,7 +21,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 Invoke-Checked "Publish implementation" { git push }
 
-Invoke-Checked "Apply D1 preflight migration" { npx.cmd wrangler d1 migrations apply pharos-x402-paywalled-api --remote --yes }
+Invoke-Checked "Apply D1 preflight migration" { npx.cmd wrangler d1 migrations apply pharos-x402-paywalled-api --remote }
 Invoke-Checked "Deploy bounded Worker" { npm.cmd run deploy }
 
 # Fixed run ID + durable reconciliation make this resumable. A retry can only
