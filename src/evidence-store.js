@@ -12,7 +12,7 @@ export class EvidenceStore {
     return row && this.decode(row);
   }
   async list() {
-    const rows = (await this.db.prepare("SELECT * FROM http_evidence ORDER BY created_at DESC LIMIT 50").all()).results;
+    const rows = (await this.db.prepare("SELECT * FROM http_evidence WHERE response_status IN (200,402) ORDER BY created_at DESC LIMIT 50").all()).results;
     return rows.map((row) => this.decode(row));
   }
   decode(row) {

@@ -23,7 +23,7 @@
     {
       "binding": "DB",
       "database_name": "pharos-x402-paywalled-api",
-      "database_id": "00000000-0000-4000-8000-000000000000",
+      "database_id": "8b61f6c7-5bbd-4899-bdff-4a792bdc8697",
       "migrations_dir": "migrations"
     }
   ],

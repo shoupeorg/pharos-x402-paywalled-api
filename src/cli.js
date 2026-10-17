@@ -10,7 +10,16 @@ async function request(path, options = {}) {
   return { status: response.status, headers: { paymentRequired: response.headers.get("PAYMENT-REQUIRED"), paymentResponse: response.headers.get("PAYMENT-RESPONSE") }, body };
 }
 
-const post = (path) => request(path, { method: "POST", allowError: true });
+async function demo(kind) {
+  const target = kind === "underpayment" ? (await request("/api/demo/prepare-underpayment", { method: "POST" })).body : (await request("/api/demo/target")).body;
+  const kinds = { free: "FREE_HEALTH", missing: "MISSING_PAYMENT", invalid: "INVALID_PAYMENT", underpayment: "UNDERPAYMENT" };
+  const url = kind === "free" ? target.freeUrl : target.url || target.paidUrl;
+  const headers = kind === "invalid" ? { "PAYMENT-SIGNATURE": "not-valid-base64" } : kind === "underpayment" ? { "PAYMENT-SIGNATURE": target.paymentSignature } : {};
+  const response = await fetch(url, { headers });
+  const responseBody = await response.clone().json().catch(() => null);
+  const recorded = await request("/api/demo/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: kinds[kind], url, preparationId: target.preparationId || null, responseStatus: response.status, responseHeaders: { paymentRequired: response.headers.get("PAYMENT-REQUIRED"), paymentResponse: response.headers.get("PAYMENT-RESPONSE"), contentType: response.headers.get("content-type") }, responseBody }) });
+  return recorded.body;
+}
 
 async function main() {
   if (command === "status") return console.log(JSON.stringify((await request("/api/config")).body, null, 2));
@@ -24,9 +33,8 @@ async function main() {
   }
   if (command === "demo") {
     const kind = args[0];
-    const routes = { free: "/api/demo/free-health", missing: "/api/demo/missing-payment", invalid: "/api/demo/invalid-payment", underpayment: "/api/demo/underpayment" };
-    if (!routes[kind]) throw new Error("Demo must be free, missing, invalid, or underpayment");
-    return console.log(JSON.stringify(await post(routes[kind]), null, 2));
+    if (!["free", "missing", "invalid", "underpayment"].includes(kind)) throw new Error("Demo must be free, missing, invalid, or underpayment");
+    return console.log(JSON.stringify(await demo(kind), null, 2));
   }
   console.log(`Usage:\n  pharos-paywall status\n  pharos-paywall health\n  pharos-paywall challenge [/paid/network-snapshot|/paid/activity-summary]\n  pharos-paywall demo <free|missing|invalid|underpayment>\n  pharos-paywall history\n\nNo CLI command broadcasts a blockchain transaction while paymentOperational is false.`);
 }

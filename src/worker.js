@@ -10,7 +10,7 @@ import { getAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { SerialExecutor } from "./serial.js";
 import { EvidenceStore } from "./evidence-store.js";
-import { runFreeHealthDemo, runInvalidPaymentDemo, runMissingPaymentDemo, runUnderpaymentDemo } from "./demos.js";
+import { browserDemoTarget, prepareUnderpaymentDemo, recordBrowserDemo } from "./demos.js";
 
 const COMPATIBILITY_BLOCKER = "The documented Atlantic test-USDC contract does not expose EIP-3009 transferWithAuthorization/authorizationState or an EIP-712 DOMAIN_SEPARATOR; the official x402 v2 exact EVM scheme cannot settle it.";
 
@@ -93,10 +93,12 @@ app.get("/api/config", async (c) => {
 
 app.get("/api/evidence", async (c) => c.json({ runs: await new BuyerStore(c.env.DB).listReviewerTasks() }));
 app.get("/api/http-evidence", async (c) => c.json({ records: await new EvidenceStore(c.env.DB).list() }));
-app.post("/api/demo/free-health", async (c) => c.json(await runFreeHealthDemo(c.env)));
-app.post("/api/demo/missing-payment", async (c) => c.json(await runMissingPaymentDemo(c.env)));
-app.post("/api/demo/invalid-payment", async (c) => c.json(await runInvalidPaymentDemo(c.env)));
-app.post("/api/demo/underpayment", async (c) => c.json(await runUnderpaymentDemo(c.env)));
+app.get("/api/demo/target", async (c) => c.json(await browserDemoTarget(c.env)));
+app.post("/api/demo/prepare-underpayment", async (c) => c.json(await prepareUnderpaymentDemo(c.env)));
+app.post("/api/demo/record", async (c) => {
+  try { return c.json(await recordBrowserDemo(c.env, await c.req.json())); }
+  catch (error) { return c.json({ error: error.message || "Browser HTTP evidence was rejected" }, 400); }
+});
 app.get("/api/verify-secrets", (c) => {
   const denied = requireOwner(c); if (denied) return denied;
   const derived = (secret, expected) => Boolean(secret && expected && getAddress(privateKeyToAccount(secret).address) === getAddress(expected));

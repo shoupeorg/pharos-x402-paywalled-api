@@ -13,13 +13,33 @@ function renderRecord(item) {
   $("evidence").innerHTML = `<article class="receipt-card"><h3>${esc(item.label)}</h3><p><b>TYPE:</b> ${esc(item.kind)}<br><b>ROUTE:</b> ${esc(item.route)}<br><b>HTTP:</b> ${esc(item.responseStatus)}<br><b>PAYMENT-REQUIRED:</b> ${item.responseHeaders?.paymentRequired ? "present (decoded below)" : "absent"}<br><b>PAYMENT-RESPONSE:</b> ${item.responseHeaders?.paymentResponse ? "present" : "absent"}<br><b>DEBIT:</b> ${esc(item.debitAtomic)} atomic USDC<br><b>RECORDED:</b> ${esc(item.createdAt)}</p><span class="tag ${item.responseStatus === 200 || item.responseStatus === 402 ? "ok" : "bad"}">${esc(item.responseStatus)}</span><pre>${esc(JSON.stringify(item.responseBody, null, 2))}</pre></article>`;
 }
 async function refresh() { const data = await request("/api/http-evidence"); records = data.records; $("settlements").textContent = String(records.filter((item) => item.settlementHash).length); if (records[0]) renderRecord(records[0]); status(`HISTORY REFRESHED · ${records.length} RECORDS`); }
-async function run(path) { status("RUNNING FRESH HTTP CHECK"); const result = await request(path, { method: "POST" }); renderRecord(result); await refresh(); }
+async function recordBrowserResponse(kind, url, response, preparationId = null) {
+  const responseBody = await response.clone().json().catch(() => null);
+  return request("/api/demo/record", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, url, preparationId, responseStatus: response.status, responseHeaders: { paymentRequired: response.headers.get("PAYMENT-REQUIRED"), paymentResponse: response.headers.get("PAYMENT-RESPONSE"), contentType: response.headers.get("content-type") }, responseBody }) });
+}
+async function runBrowserDemo(kind) {
+  status("RUNNING FRESH BROWSER → PUBLIC URL HTTP CHECK");
+  let url; let headers = {}; let preparationId = null;
+  if (kind === "FREE_HEALTH") {
+    url = (await request("/api/demo/target")).freeUrl;
+  } else if (kind === "UNDERPAYMENT") {
+    const prepared = await request("/api/demo/prepare-underpayment", { method: "POST" });
+    url = prepared.url; preparationId = prepared.preparationId; headers = { "PAYMENT-SIGNATURE": prepared.paymentSignature };
+  } else {
+    url = (await request("/api/demo/target")).paidUrl;
+    if (kind === "INVALID_PAYMENT") headers = { "PAYMENT-SIGNATURE": "not-valid-base64" };
+  }
+  const response = await fetch(url, { headers });
+  headers = {}; // discard the ephemeral underpayment signature immediately
+  const result = await recordBrowserResponse(kind, url, response, preparationId);
+  renderRecord(result); await refresh();
+}
 async function facilitator() { const result = await request("/supported"); $("supported").textContent = JSON.stringify(result, null, 2); status("FACILITATOR EVIDENCE LOADED"); }
 function paid(route) { const row = records.find((item) => item.kind === route); if (!row) throw new Error("No real paid evidence exists: official documented test USDC is incompatible with EIP-3009"); renderRecord(row); }
-$("free-health").addEventListener("click", () => run("/api/demo/free-health").catch((error) => status(error.message, false)));
-$("missing-payment").addEventListener("click", () => run("/api/demo/missing-payment").catch((error) => status(error.message, false)));
-$("invalid-payment").addEventListener("click", () => run("/api/demo/invalid-payment").catch((error) => status(error.message, false)));
-$("underpayment").addEventListener("click", () => run("/api/demo/underpayment").catch((error) => status(error.message, false)));
+$("free-health").addEventListener("click", () => runBrowserDemo("FREE_HEALTH").catch((error) => status(error.message, false)));
+$("missing-payment").addEventListener("click", () => runBrowserDemo("MISSING_PAYMENT").catch((error) => status(error.message, false)));
+$("invalid-payment").addEventListener("click", () => runBrowserDemo("INVALID_PAYMENT").catch((error) => status(error.message, false)));
+$("underpayment").addEventListener("click", () => runBrowserDemo("UNDERPAYMENT").catch((error) => status(error.message, false)));
 $("paid-a").addEventListener("click", () => { try { paid("PAID_ROUTE_A"); } catch (error) { status(error.message, false); } });
 $("paid-b").addEventListener("click", () => { try { paid("PAID_ROUTE_B"); } catch (error) { status(error.message, false); } });
 $("facilitator").addEventListener("click", () => facilitator().catch((error) => status(error.message, false)));

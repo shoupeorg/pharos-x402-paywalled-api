@@ -52,14 +52,14 @@ This Worker exposes:
 
 The seller calls its public `PUBLIC_ORIGIN/verify` and `/settle` endpoints over HTTP through `src/facilitator-http.js`; it does not bypass them with an internal facilitator call. For a compatible token, the SDK validates the EIP-3009 signature/authorization, expiry, and settlement. `simulateInSettle`, per-transaction gas ceiling `160000`, total gas ceiling `2000000`, exact route allowlisting, D1 idempotency, and owner authentication constrain settlement.
 
-The deployed negative demos make real HTTP requests to the public paid URL:
+The deployed UI/CLI negative demos make real browser-or-CLI HTTP requests to the public paid URL, then submit only sanitized response evidence for server validation and D1 persistence:
 
 1. no `PAYMENT-SIGNATURE` → HTTP 402 and an actual `PAYMENT-REQUIRED` header;
 2. malformed header → HTTP 402;
 3. an SDK-generated, correctly signed authorization for one atomic unit below the route price → HTTP 402 before the seller/facilitator;
 4. `/health` → HTTP 200 without payment.
 
-These records are persisted in D1 with status, safe headers, decoded requirements, zero debit, and no settlement hash. Full reusable signatures and private keys are never stored in evidence.
+These records are persisted in D1 with status, safe headers, decoded requirements, zero debit, and no settlement hash. The underpayment preparation is server-created, resource-bound, expires in five minutes, and can be consumed once. Its strictly underpriced signature is discarded by the client and never stored in evidence. Full reusable signatures and private keys are never persisted.
 
 ## Durability and recovery
 
@@ -120,13 +120,14 @@ Do not set `PAYMENT_OPERATIONAL=true` until a documented compatible Atlantic tok
 
 ## Tests
 
-`npm test` currently runs 27 deterministic tests. Behavioral coverage includes:
+`npm test` currently runs 28 deterministic tests. Behavioral coverage includes:
 
 - free route HTTP 200 bypass;
 - both distinct atomic route prices and unpaid 402 headers;
 - malformed and valid-signature underpayment rejection before seller access;
 - wrong chain/token/recipient/amount allowlist rejection;
 - persistent zero-debit HTTP evidence;
+- browser HTTP evidence validation and one-time underpayment-preparation consumption;
 - exact decimal arithmetic and boundary comparisons;
 - concurrent duplicate runs and global budget races;
 - one debit/spend after lost response;

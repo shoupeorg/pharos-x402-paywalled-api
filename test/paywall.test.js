@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decodePaymentRequiredHeader, encodePaymentSignatureHeader } from "@x402/core/http";
+import { decodePaymentRequiredHeader, encodePaymentRequiredHeader, encodePaymentSignatureHeader } from "@x402/core/http";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { app, assertAllowlistedFacilitatorRequest } from "../src/worker.js";
 import { buildPaymentRequired, makeBuyerClient } from "../src/protocol.js";
 import { EvidenceStore } from "../src/evidence-store.js";
+import { recordBrowserDemo } from "../src/demos.js";
 import { createDatabase } from "./support/sqlite-d1.js";
 
 const TOKEN = "0xE0BE08c77f415F577A1B3A9aD7a1Df1479564ec8";
@@ -96,4 +97,24 @@ test("safe HTTP evidence persists exact status and zero debit", async (t) => {
   assert.equal(record.responseStatus, 402);
   assert.equal(record.debitAtomic, "0");
   assert.equal(record.settlementHash, null);
+});
+
+test("browser HTTP evidence validates 200/402 responses and consumes underpayment preparation once", async (t) => {
+  const { db, env } = fixture(); t.after(() => db.close());
+  const free = await recordBrowserDemo(env, { kind: "FREE_HEALTH", url: `${env.PUBLIC_ORIGIN}/health`, responseStatus: 200, responseHeaders: {}, responseBody: { ok: true, free: true } });
+  assert.equal(free.responseStatus, 200);
+  assert.equal(free.request.transport, "BROWSER_HTTP");
+
+  const url = `${env.PUBLIC_ORIGIN}/paid/network-snapshot?block=12345`;
+  const required = buildPaymentRequired({ origin: env.PUBLIC_ORIGIN, path: "/paid/network-snapshot", snapshotBlock: "12345", env });
+  const paymentRequired = encodePaymentRequiredHeader(required);
+  const missing = await recordBrowserDemo(env, { kind: "MISSING_PAYMENT", url, responseStatus: 402, responseHeaders: { paymentRequired }, responseBody: required });
+  assert.equal(missing.decodedRequirements.accepts[0].amount, "1000");
+
+  await db.prepare("INSERT INTO demo_preparations(id,kind,resource_url,signed_amount_atomic,required_amount_atomic,expires_at) VALUES(?,?,?,?,?,?)")
+    .bind("prepared-once", "UNDERPAYMENT", url, "999", "1000", Math.floor(Date.now() / 1000) + 60).run();
+  const underpaid = await recordBrowserDemo(env, { kind: "UNDERPAYMENT", url, preparationId: "prepared-once", responseStatus: 402, responseHeaders: { paymentRequired }, responseBody: { error: "Payment does not satisfy the exact allowlisted requirements" } });
+  assert.equal(underpaid.request.validSdkSignaturePreparedServerSide, true);
+  assert.equal(underpaid.request.signedAmountAtomic, "999");
+  await assert.rejects(() => recordBrowserDemo(env, { kind: "UNDERPAYMENT", url, preparationId: "prepared-once", responseStatus: 402, responseHeaders: { paymentRequired }, responseBody: { error: "Payment does not satisfy the exact allowlisted requirements" } }), /consumed/);
 });
